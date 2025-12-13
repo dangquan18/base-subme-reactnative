@@ -1,98 +1,563 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Image,
+  Dimensions,
+  Platform,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { CATEGORIES } from "@/constants/categories";
+import { FEATURED_PACKAGES } from "@/constants/mock-packages";
+import { AppTheme } from "@/constants/theme";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const { width } = Dimensions.get("window");
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const router = useRouter();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+    }).format(price);
+  };
+
+  const getFrequencyText = (frequency: string) => {
+    switch (frequency) {
+      case "daily":
+        return "/ngày";
+      case "weekly":
+        return "/tuần";
+      case "monthly":
+        return "/tháng";
+      default:
+        return "";
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Hero Header with Gradient */}
+        <LinearGradient
+          colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroHeader}
+        >
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.greeting}>Xin chào 👋</Text>
+              <Text style={styles.headerTitle}>Khám phá dịch vụ</Text>
+              <Text style={styles.headerSubtitle}>Đăng ký ngay hôm nay</Text>
+            </View>
+            <Pressable style={styles.notificationButton}>
+              <View style={styles.notificationIconWrapper}>
+                <Ionicons name="notifications-outline" size={24} color="#FFF" />
+                <View style={styles.notificationBadge} />
+              </View>
+            </Pressable>
+          </View>
+
+          {/* Search Bar */}
+          <Pressable
+            style={styles.searchBar}
+            onPress={() => router.push("/(tabs)/explore" as any)}
+          >
+            <Ionicons
+              name="search"
+              size={20}
+              color={AppTheme.colors.textSecondary}
+            />
+            <Text style={styles.searchPlaceholder}>
+              Tìm kiếm gói dịch vụ...
+            </Text>
+            <Ionicons
+              name="options-outline"
+              size={20}
+              color={AppTheme.colors.textSecondary}
+            />
+          </Pressable>
+        </LinearGradient>
+
+        {/* Stats Cards */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <View
+              style={[styles.statIconWrapper, { backgroundColor: "#E8F5E9" }]}
+            >
+              <Ionicons name="cube" size={28} color="#4CAF50" />
+            </View>
+            <Text style={styles.statValue}>120+</Text>
+            <Text style={styles.statLabel}>Gói dịch vụ</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View
+              style={[styles.statIconWrapper, { backgroundColor: "#E3F2FD" }]}
+            >
+              <Ionicons name="people" size={28} color="#2196F3" />
+            </View>
+            <Text style={styles.statValue}>5K+</Text>
+            <Text style={styles.statLabel}>Người dùng</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View
+              style={[styles.statIconWrapper, { backgroundColor: "#FFF9C4" }]}
+            >
+              <Ionicons name="star" size={28} color="#FFC107" />
+            </View>
+            <Text style={styles.statValue}>4.8</Text>
+            <Text style={styles.statLabel}>Đánh giá</Text>
+          </View>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActionsSection}>
+          <Text style={styles.sectionTitle}>Khám phá nhanh</Text>
+          <View style={styles.quickActions}>
+            <Pressable
+              style={styles.quickActionCard}
+              onPress={() => router.push("/(tabs)/explore" as any)}
+            >
+              <View
+                style={[styles.quickActionIcon, { backgroundColor: "#EDE7F6" }]}
+              >
+                <Ionicons name="search" size={24} color="#673AB7" />
+              </View>
+              <Text style={styles.quickActionText}>Tìm kiếm</Text>
+            </Pressable>
+            <Pressable
+              style={styles.quickActionCard}
+              onPress={() => router.push("/(tabs)/explore" as any)}
+            >
+              <View
+                style={[styles.quickActionIcon, { backgroundColor: "#E3F2FD" }]}
+              >
+                <Ionicons name="grid" size={24} color="#2196F3" />
+              </View>
+              <Text style={styles.quickActionText}>Danh mục</Text>
+            </Pressable>
+            <Pressable
+              style={styles.quickActionCard}
+              onPress={() => router.push("/(tabs)/subscriptions" as any)}
+            >
+              <View
+                style={[styles.quickActionIcon, { backgroundColor: "#E8F5E9" }]}
+              >
+                <Ionicons name="bookmark" size={24} color="#4CAF50" />
+              </View>
+              <Text style={styles.quickActionText}>Gói của tôi</Text>
+            </Pressable>
+            <Pressable
+              style={styles.quickActionCard}
+              onPress={() => router.push("/(tabs)/profile" as any)}
+            >
+              <View
+                style={[styles.quickActionIcon, { backgroundColor: "#FFF9C4" }]}
+              >
+                <Ionicons name="gift" size={24} color="#FFC107" />
+              </View>
+              <Text style={styles.quickActionText}>Ưu đãi</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Categories */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Danh mục phổ biến</Text>
+            <Pressable onPress={() => router.push("/(tabs)/explore" as any)}>
+              <Text style={styles.seeAllButton}>Xem tất cả →</Text>
+            </Pressable>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesContainer}
+          >
+            {CATEGORIES.map((category) => (
+              <Pressable
+                key={category.id}
+                style={styles.categoryCard}
+                onPress={() => router.push("/(tabs)/explore" as any)}
+              >
+                <LinearGradient
+                  colors={[category.color + "20", category.color + "10"]}
+                  style={styles.categoryIcon}
+                >
+                  <Text style={styles.categoryEmoji}>{category.emoji}</Text>
+                </LinearGradient>
+                <Text style={styles.categoryName}>{category.name}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Featured Packages */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>Gói nổi bật ⭐</Text>
+              <Text style={styles.sectionSubtitle}>Được yêu thích nhất</Text>
+            </View>
+            <Pressable onPress={() => router.push("/(tabs)/explore" as any)}>
+              <Text style={styles.seeAllButton}>Xem tất cả →</Text>
+            </Pressable>
+          </View>
+
+          {FEATURED_PACKAGES.map((pkg) => (
+            <Pressable
+              key={pkg.id}
+              style={styles.packageCard}
+              onPress={() => router.push(`/package/${pkg.id}` as any)}
+            >
+              <Image
+                source={{ uri: pkg.image }}
+                style={styles.packageImage}
+                defaultSource={require("@/assets/images/partial-react-logo.png")}
+              />
+              <View style={styles.packageBadge}>
+                <Ionicons name="star" size={12} color="#FFF" />
+                <Text style={styles.packageBadgeText}>{pkg.rating}</Text>
+              </View>
+              <View style={styles.packageContent}>
+                <View style={styles.packageHeader}>
+                  <Text style={styles.packageName} numberOfLines={1}>
+                    {pkg.name}
+                  </Text>
+                </View>
+
+                <Text style={styles.packageProvider}>{pkg.providerName}</Text>
+                <Text style={styles.packageDescription} numberOfLines={2}>
+                  {pkg.description}
+                </Text>
+
+                <View style={styles.packageFooter}>
+                  <View style={styles.priceWrapper}>
+                    <Text style={styles.packagePrice}>
+                      {formatPrice(pkg.price)}
+                    </Text>
+                    <Text style={styles.packageFrequency}>
+                      {getFrequencyText(pkg.frequency)}
+                    </Text>
+                  </View>
+                  <Pressable style={styles.subscribeButton}>
+                    <LinearGradient
+                      colors={[
+                        AppTheme.colors.primary,
+                        AppTheme.colors.primaryLight,
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.subscribeGradient}
+                    >
+                      <Text style={styles.subscribeButtonText}>Đăng ký</Text>
+                      <Ionicons name="arrow-forward" size={14} color="#FFF" />
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+                <View style={styles.subscriberRow}>
+                  <Ionicons
+                    name="people"
+                    size={14}
+                    color={AppTheme.colors.textLight}
+                  />
+                  <Text style={styles.subscriberCount}>
+                    {pkg.subscriberCount}+ người đăng ký
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Bottom Spacing */}
+        <View style={{ height: 32 }} />
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: AppTheme.colors.background,
   },
-  stepContainer: {
-    gap: 8,
+  heroHeader: {
+    paddingTop: Platform.OS === "ios" ? 50 : 40,
+    paddingBottom: 20,
+    paddingHorizontal: AppTheme.spacing.xl,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+  greeting: {
+    fontSize: AppTheme.fontSize.sm,
+    color: "rgba(255, 255, 255, 0.9)",
+    marginBottom: 4,
+  },
+  headerTitle: {
+    fontSize: AppTheme.fontSize.xxxl,
+    fontWeight: AppTheme.fontWeight.bold,
+    color: AppTheme.colors.textWhite,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: AppTheme.fontSize.base,
+    color: "rgba(255, 255, 255, 0.85)",
+  },
+  notificationButton: {
+    padding: 4,
+  },
+  notificationIconWrapper: {
+    position: "relative",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: AppTheme.colors.error,
+    borderWidth: 1.5,
+    borderColor: AppTheme.colors.textWhite,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: AppTheme.colors.backgroundWhite,
+    borderRadius: AppTheme.borderRadius.md,
+    paddingHorizontal: AppTheme.spacing.lg,
+    paddingVertical: AppTheme.spacing.md,
+    gap: AppTheme.spacing.md,
+    ...AppTheme.shadow.sm,
+  },
+  searchPlaceholder: {
+    flex: 1,
+    fontSize: AppTheme.fontSize.base,
+    color: AppTheme.colors.textSecondary,
+  },
+  statsContainer: {
+    flexDirection: "row",
+    paddingHorizontal: AppTheme.spacing.xl,
+    marginTop: 20,
+    gap: 12,
+    marginBottom: AppTheme.spacing.xl,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: AppTheme.colors.backgroundWhite,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: "center",
+    ...AppTheme.shadow.sm,
+  },
+  statIconWrapper: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  statValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    textAlign: "center",
+  },
+  quickActionsSection: {
+    paddingHorizontal: AppTheme.spacing.xl,
+    marginBottom: AppTheme.spacing.xl,
+  },
+  quickActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  quickActionCard: {
+    flex: 1,
+    alignItems: "center",
+    gap: 8,
+  },
+  quickActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    ...AppTheme.shadow.sm,
+  },
+  quickActionText: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#1E293B",
+    textAlign: "center",
+  },
+  section: {
+    marginBottom: AppTheme.spacing.xxl,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: AppTheme.spacing.xl,
+    marginBottom: AppTheme.spacing.lg,
+  },
+  sectionTitle: {
+    fontSize: AppTheme.fontSize.xl,
+    fontWeight: AppTheme.fontWeight.bold,
+    color: AppTheme.colors.textPrimary,
+  },
+  sectionSubtitle: {
+    fontSize: AppTheme.fontSize.sm,
+    color: AppTheme.colors.textSecondary,
+    marginTop: 2,
+  },
+  seeAllButton: {
+    fontSize: AppTheme.fontSize.sm,
+    color: AppTheme.colors.primary,
+    fontWeight: AppTheme.fontWeight.semibold,
+  },
+  categoriesContainer: {
+    paddingHorizontal: AppTheme.spacing.xl,
+    gap: AppTheme.spacing.md,
+  },
+  categoryCard: {
+    alignItems: "center",
+    width: 80,
+  },
+  categoryIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: AppTheme.borderRadius.lg,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: AppTheme.spacing.sm,
+    ...AppTheme.shadow.sm,
+  },
+  categoryEmoji: {
+    fontSize: 36,
+  },
+  categoryName: {
+    fontSize: AppTheme.fontSize.xs,
+    color: AppTheme.colors.textPrimary,
+    fontWeight: AppTheme.fontWeight.medium,
+    textAlign: "center",
+  },
+  packageCard: {
+    backgroundColor: AppTheme.colors.backgroundWhite,
+    borderRadius: AppTheme.borderRadius.lg,
+    marginHorizontal: AppTheme.spacing.xl,
+    marginBottom: AppTheme.spacing.lg,
+    overflow: "hidden",
+    ...AppTheme.shadow.md,
+  },
+  packageImage: {
+    width: "100%",
+    height: 200,
+    backgroundColor: AppTheme.colors.backgroundLight,
+  },
+  packageBadge: {
+    position: "absolute",
+    top: AppTheme.spacing.md,
+    right: AppTheme.spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingHorizontal: AppTheme.spacing.sm + 2,
+    paddingVertical: 6,
+    borderRadius: AppTheme.borderRadius.full,
+  },
+  packageBadgeText: {
+    fontSize: AppTheme.fontSize.xs,
+    fontWeight: AppTheme.fontWeight.semibold,
+    color: AppTheme.colors.textWhite,
+  },
+  packageContent: {
+    padding: AppTheme.spacing.lg,
+  },
+  packageHeader: {
+    marginBottom: 6,
+  },
+  packageName: {
+    fontSize: AppTheme.fontSize.lg,
+    fontWeight: AppTheme.fontWeight.bold,
+    color: AppTheme.colors.textPrimary,
+  },
+  packageProvider: {
+    fontSize: AppTheme.fontSize.sm,
+    color: AppTheme.colors.primary,
+    marginBottom: AppTheme.spacing.sm,
+    fontWeight: AppTheme.fontWeight.medium,
+  },
+  packageDescription: {
+    fontSize: AppTheme.fontSize.sm,
+    color: AppTheme.colors.textSecondary,
+    marginBottom: AppTheme.spacing.md,
+    lineHeight: 20,
+  },
+  packageFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: AppTheme.spacing.sm,
+  },
+  priceWrapper: {
+    flex: 1,
+  },
+  packagePrice: {
+    fontSize: AppTheme.fontSize.xl,
+    fontWeight: AppTheme.fontWeight.bold,
+    color: AppTheme.colors.textPrimary,
+  },
+  packageFrequency: {
+    fontSize: AppTheme.fontSize.sm,
+    color: AppTheme.colors.textSecondary,
+    marginTop: 2,
+  },
+  subscribeButton: {
+    borderRadius: AppTheme.borderRadius.sm,
+    overflow: "hidden",
+    ...AppTheme.shadow.sm,
+  },
+  subscribeGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: AppTheme.spacing.lg,
+    paddingVertical: AppTheme.spacing.sm + 2,
+  },
+  subscribeButtonText: {
+    color: AppTheme.colors.textWhite,
+    fontSize: AppTheme.fontSize.sm,
+    fontWeight: AppTheme.fontWeight.semibold,
+  },
+  subscriberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: AppTheme.spacing.sm,
+  },
+  subscriberCount: {
+    fontSize: AppTheme.fontSize.xs,
+    color: AppTheme.colors.textLight,
   },
 });
