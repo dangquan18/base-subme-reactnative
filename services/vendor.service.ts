@@ -1,5 +1,5 @@
-import { apiClient } from "./api";
 import { Package, Review } from "@/types";
+import { apiClient } from "./api";
 
 interface VendorStats {
   total_revenue: number;
@@ -39,11 +39,11 @@ interface VendorOrdersResponse {
 }
 
 interface VendorAnalytics {
-  daily_stats: Array<{
+  daily_stats: {
     date: string;
     subscriptions: number;
     revenue: number;
-  }>;
+  }[];
   total_revenue: number;
   total_subscriptions: number;
 }
@@ -77,7 +77,17 @@ export const vendorService = {
   // Get vendor dashboard stats
   async getStats(): Promise<VendorStats> {
     try {
-      const response = await apiClient.get<VendorStats>("/vendor/stats");
+      const token = await localStorage.getItem("auth_token");
+
+      const response = await apiClient.get<VendorStats>(
+        "/vendor/stats",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
       return response;
     } catch (error) {
       console.error("Get vendor stats error:", error);
