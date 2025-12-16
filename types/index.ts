@@ -51,6 +51,7 @@ export interface Package {
   duration_unit: DurationUnit;
   features?: string;
   image?: string;
+  imageUrl?: string; // Backend trả về field này
   status: PackageStatus;
   is_active: boolean;
   subscriber_count: number;

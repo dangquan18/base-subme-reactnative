@@ -196,14 +196,7 @@ export default function MySubscriptionsScreen() {
             </Text>
             <Text style={styles.statLabel}>Đang hoạt động</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: "#667eea" }]}>
-              {formatPrice(
-                subscriptions.reduce((sum, s) => sum + (s.plan?.price || 0), 0)
-              )}
-            </Text>
-            <Text style={styles.statLabel}>Tháng này</Text>
-          </View>
+       
         </View>
 
         {subscriptions.length === 0 ? (
@@ -236,9 +229,9 @@ export default function MySubscriptionsScreen() {
                 router.push(`/subscription/${subscription.id}` as any)
               }
             >
-              {subscription.plan.image ? (
+              {(subscription.plan.imageUrl || subscription.plan.image) ? (
                 <Image
-                  source={{ uri: subscription.plan.image }}
+                  source={{ uri: subscription.plan.imageUrl || subscription.plan.image }}
                   style={styles.packageImage}
                   defaultSource={require("@/assets/images/partial-react-logo.png")}
                 />
@@ -293,38 +286,7 @@ export default function MySubscriptionsScreen() {
                 </View>
 
                 <View style={styles.cardActions}>
-                  {subscription.status === "expired" && (
-                    <Pressable 
-                      style={styles.renewButton}
-                      onPress={() => handleRenewSubscription(subscription.id)}
-                    >
-                      <Text style={styles.renewButtonText}>Gia hạn</Text>
-                    </Pressable>
-                  )}
-                  {subscription.status === "active" && (
-                    <Pressable 
-                      style={styles.pauseButton}
-                      onPress={() => handlePauseSubscription(subscription.id)}
-                    >
-                      <Ionicons name="pause-outline" size={16} color="#666" />
-                      <Text style={styles.pauseButtonText}>Tạm dừng</Text>
-                    </Pressable>
-                  )}
-                  {subscription.status === "paused" && (
-                    <Pressable 
-                      style={styles.resumeButton}
-                      onPress={() => handleResumeSubscription(subscription.id)}
-                    >
-                      <Ionicons name="play-outline" size={16} color="#4CAF50" />
-                      <Text style={styles.resumeButtonText}>Tiếp tục</Text>
-                    </Pressable>
-                  )}
-                  <Pressable 
-                    style={styles.cancelButton}
-                    onPress={() => handleCancelSubscription(subscription.id)}
-                  >
-                    <Text style={styles.cancelButtonText}>Hủy</Text>
-                  </Pressable>
+                  
                   <Pressable style={styles.detailButton}>
                     <Text style={styles.detailButtonText}>Chi tiết</Text>
                     <Ionicons

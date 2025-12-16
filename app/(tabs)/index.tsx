@@ -64,6 +64,23 @@ export default function HomeScreen() {
     return `/${value} ${unit}`;
   };
 
+  // Mapping icon cho categories
+  const getCategoryIcon = (categoryName: string): keyof typeof Ionicons.glyphMap => {
+    const iconMap: { [key: string]: keyof typeof Ionicons.glyphMap } = {
+      'Giải trí': 'game-controller',
+      'Giáo dục': 'school',
+      'Sức khỏe': 'fitness',
+      'Ẩm thực': 'restaurant',
+      'Du lịch': 'airplane',
+      'Công nghệ': 'hardware-chip',
+      'Thời trang': 'shirt',
+      'Âm nhạc': 'musical-notes',
+      'Thể thao': 'football',
+      'default': 'apps'
+    };
+    return iconMap[categoryName] || iconMap['default'];
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
@@ -138,12 +155,10 @@ export default function HomeScreen() {
             <View
               style={[styles.statIconWrapper, { backgroundColor: "#E3F2FD" }]}
             >
-              <Ionicons name="people" size={28} color="#2196F3" />
+              <Ionicons name="grid" size={28} color="#2196F3" />
             </View>
-            <Text style={styles.statValue}>
-              {featuredPackages.reduce((sum, pkg) => sum + pkg.subscriber_count, 0)}+
-            </Text>
-            <Text style={styles.statLabel}>Người dùng</Text>
+            <Text style={styles.statValue}>{categories.length}+</Text>
+            <Text style={styles.statLabel}>Danh mục</Text>
           </View>
           <View style={styles.statCard}>
             <View
@@ -151,11 +166,7 @@ export default function HomeScreen() {
             >
               <Ionicons name="star" size={28} color="#FFC107" />
             </View>
-            <Text style={styles.statValue}>
-              {featuredPackages.length > 0 
-                ? (featuredPackages.reduce((sum, pkg) => sum + pkg.average_rating, 0) / featuredPackages.length).toFixed(1)
-                : "0"}
-            </Text>
+            <Text style={styles.statValue}>4.8</Text>
             <Text style={styles.statLabel}>Đánh giá</Text>
           </View>
         </View>
@@ -234,7 +245,11 @@ export default function HomeScreen() {
                   colors={["#667eea20", "#667eea10"]}
                   style={styles.categoryIcon}
                 >
-                  <Text style={styles.categoryEmoji}>{category.icon}</Text>
+                  <Ionicons 
+                    name={getCategoryIcon(category.name)} 
+                    size={32} 
+                    color={AppTheme.colors.primary} 
+                  />
                 </LinearGradient>
                 <Text style={styles.categoryName}>{category.name}</Text>
               </Pressable>
@@ -260,9 +275,9 @@ export default function HomeScreen() {
               style={styles.packageCard}
               onPress={() => router.push(`/package/${pkg.id}` as any)}
             >
-              {pkg.image ? (
+              {(pkg.imageUrl || pkg.image) ? (
                 <Image
-                  source={{ uri: pkg.image }}
+                  source={{ uri: pkg.imageUrl || pkg.image }}
                   style={styles.featuredImage}
                   defaultSource={require("@/assets/images/partial-react-logo.png")}
                 />
@@ -518,6 +533,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...AppTheme.shadow.md,
   },
+  featuredImage: {
+    width: "100%",
+    height: 200,
+    backgroundColor: AppTheme.colors.backgroundLight,
+  },
   packageImage: {
     width: "100%",
     height: 200,
@@ -530,7 +550,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(255, 193, 7, 0.95)",
     paddingHorizontal: AppTheme.spacing.sm + 2,
     paddingVertical: 6,
     borderRadius: AppTheme.borderRadius.full,
@@ -538,7 +558,7 @@ const styles = StyleSheet.create({
   packageBadgeText: {
     fontSize: AppTheme.fontSize.xs,
     fontWeight: AppTheme.fontWeight.semibold,
-    color: AppTheme.colors.textWhite,
+    color: "#1E293B",
   },
   packageContent: {
     padding: AppTheme.spacing.lg,

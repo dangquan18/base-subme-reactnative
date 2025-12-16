@@ -7,9 +7,8 @@ import {
   Pressable,
   Switch,
   Image,
-  Platform,
   ActivityIndicator,
-  Alert,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -19,6 +18,7 @@ import { AppTheme } from "@/constants/theme";
 import { packageService } from "@/services/package.service";
 import { paymentService } from "@/services/payment.service";
 import { Package, Payment } from "@/types";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 
 interface MenuItem {
   icon: string;
@@ -43,6 +43,7 @@ export default function ProfileScreen() {
   const [favorites, setFavorites] = useState<Package[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -79,31 +80,12 @@ export default function ProfileScreen() {
   }, 0);
 
   const handleSignOut = async () => {
-    const confirmed = Platform.OS === 'web' 
-      ? window.confirm('Bạn có chắc muốn đăng xuất?')
-      : await new Promise<boolean>((resolve) => {
-          Alert.alert(
-            'Đăng xuất',
-            'Bạn có chắc muốn đăng xuất?',
-            [
-              { text: 'Hủy', style: 'cancel', onPress: () => resolve(false) },
-              {
-                text: 'Đăng xuất',
-                style: 'destructive',
-                onPress: () => resolve(true),
-              },
-            ]
-          );
-        });
-
-    if (confirmed) {
-      try {
-        await signOut();
-        router.replace('/(auth)/welcome');
-      } catch (error) {
-        console.error('Sign out error:', error);
-        alert('Đăng xuất thất bại. Vui lòng thử lại.');
-      }
+    try {
+      await signOut();
+      setShowLogoutModal(false);
+      router.replace('/(auth)/welcome');
+    } catch (error) {
+      console.error('Sign out error:', error);
     }
   };
 
@@ -265,10 +247,16 @@ export default function ProfileScreen() {
                   style={styles.favoriteCard}
                   onPress={() => router.push(`/package/${pkg.id}`)}
                 >
-                  <Image
-                    source={{ uri: pkg.image }}
-                    style={styles.favoriteImage}
-                  />
+                  {(pkg.imageUrl || pkg.image) ? (
+                    <Image
+                      source={{ uri: pkg.imageUrl || pkg.image }}
+                      style={styles.favoriteImage}
+                    />
+                  ) : (
+                    <View style={[styles.favoriteImage, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
+                      <Ionicons name="image-outline" size={32} color="#ccc" />
+                    </View>
+                  )}
                   <Text style={styles.favoriteName} numberOfLines={2}>
                     {pkg.name}
                   </Text>
@@ -386,7 +374,7 @@ export default function ProfileScreen() {
         ))}
 
         {/* Sign Out Button */}
-        <Pressable style={styles.signOutButton} onPress={handleSignOut}>
+        <Pressable style={styles.signOutButton} onPress={() => setShowLogoutModal(true)}>
           <Ionicons name="log-out-outline" size={20} color="#F44336" />
           <Text style={styles.signOutButtonText}>Đăng xuất</Text>
         </Pressable>
@@ -395,6 +383,19 @@ export default function ProfileScreen() {
           <Text style={styles.footerText}>Version 1.0.0</Text>
         </View>
       </ScrollView>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        visible={showLogoutModal}
+        title="Đăng xuất"
+        message="Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?"
+        confirmText="Đăng xuất"
+        cancelText="Hủy"
+        type="danger"
+        icon="log-out-outline"
+        onConfirm={handleSignOut}
+        onCancel={() => setShowLogoutModal(false)}
+      />
     </View>
   );
 }

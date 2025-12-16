@@ -290,9 +290,9 @@ export default function SubscriptionDetailScreen() {
             <Ionicons name="arrow-back" size={24} color="#333" />
           </Pressable>
           
-          {subscription.plan?.image ? (
+          {(subscription.plan?.imageUrl || subscription.plan?.image) ? (
             <Image
-              source={{ uri: subscription.plan.image }}
+              source={{ uri: subscription.plan.imageUrl || subscription.plan.image }}
               style={styles.packageImage}
             />
           ) : (
@@ -601,7 +601,7 @@ export default function SubscriptionDetailScreen() {
                     </View>
                     <View>
                       <Text style={styles.reviewUserName}>
-                        {review.user?.full_name || "Người dùng"}
+                        {review.user?.name || "Người dùng"}
                       </Text>
                       <View style={styles.reviewRating}>
                         {[1, 2, 3, 4, 5].map((star) => (
