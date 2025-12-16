@@ -1,70 +1,140 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  Pressable,
-  TextInput,
-  RefreshControl,
-  Alert,
-} from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { vendorService } from "@/services/vendor.service";
 import { AppTheme } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  RefreshControl,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from "react-native";
+
+const { width } = Dimensions.get("window");
+
+/* ================= TYPES ================= */
+
+// Định nghĩa trạng thái đơn hàng
+type OrderStatus = "all" | "pending" | "active" | "expired" | "cancelled" | "rejected";
 
 interface VendorOrder {
   id: number;
-  customerName: string;
-  customerEmail: string;
-  packageName: string;
-  amount: number;
-  status: "pending_payment" | "active" | "expired" | "cancelled";
-  createdAt: string;
-  startDate: string;
-  endDate: string;
-  paymentMethod?: string;
+  user_id: number;
+  plan_id: number;
+  amount: string; // API thường trả string cho decimal
+  status: string; // 'pending' | 'active' | ...
+  start_date: string;
+  end_date: string;
+  created_at: string;
+  // Join tables (Giả định cấu trúc trả về từ Backend)
+  user: {
+    name: string;
+    email: string;
+    avatar?: string;
+  };
+  plan: {
+    name: string;
+    duration_value: number;
+    duration_unit: string;
+  };
 }
+
+/* ================= HELPER FUNCTIONS ================= */
+
+const formatCurrency = (amount: number | string) => {
+  const value = typeof amount === "string" ? parseFloat(amount) : amount;
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+  }).format(value);
+};
+
+const formatDate = (dateString: string) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  return date.toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "active": return "#4CAF50"; // Xanh lá
+    case "pending": return "#FF9800"; // Cam
+    case "pending_payment": return "#FF9800";
+    case "expired": return "#9E9E9E"; // Xám
+    case "cancelled": return "#F44336"; // Đỏ
+    case "rejected": return "#D32F2F"; // Đỏ đậm
+    default: return "#2196F3"; // Xanh dương
+  }
+};
+
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case "active": return "Đang hoạt động";
+    case "pending": return "Chờ duyệt";
+    case "pending_payment": return "Chờ thanh toán";
+    case "expired": return "Hết hạn";
+    case "cancelled": return "Đã hủy";
+    case "rejected": return "Đã từ chối";
+    default: return status;
+  }
+};
+
+/* ================= COMPONENT ================= */
 
 export default function VendorOrders() {
   const [orders, setOrders] = useState<VendorOrder[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<VendorOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  
+  // Filter States
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<OrderStatus>("all");
 
   useEffect(() => {
     fetchOrders();
   }, []);
 
+  // Logic lọc client-side (giúp app mượt hơn đỡ gọi API nhiều lần)
   useEffect(() => {
     filterOrders();
-  }, [orders, statusFilter, searchQuery]);
+  }, [orders, searchQuery, selectedStatus]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const response = await vendorService.getOrders();
+      const token = localStorage.getItem("auth_token");
       
-      // Map VendorOrder từ API sang RecentOrder interface
-      const mappedOrders: VendorOrder[] = response.data.map(order => ({
-        id: order.id,
-        customerName: order.user.name,
-        customerEmail: order.user.email,
-        packageName: order.plan.name,
-        amount: order.plan.price,
-        status: order.status as VendorOrder['status'],
-        createdAt: order.start_date,
-        startDate: order.start_date,
-        endDate: order.end_date,
-        paymentMethod: "VNPay",
-      }));
+      const res = await fetch("http://localhost:3000/vendor/orders", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
 
-      setOrders(mappedOrders);
+      if (res.ok) {
+        const data = await res.json();
+        // Giả sử API trả về { data: [...] } hoặc [...]
+        const list = Array.isArray(data) ? data : data.data || [];
+        setOrders(list);
+      } else {
+        console.log("Fetch orders failed");
+        setOrders([]);
+      }
     } catch (error) {
       console.error("Error fetching orders:", error);
+      Alert.alert("Lỗi", "Không thể tải danh sách đơn hàng");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -72,22 +142,25 @@ export default function VendorOrders() {
   };
 
   const filterOrders = () => {
-    let filtered = orders;
+    let result = orders;
 
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((order) => order.status === statusFilter);
+    // 1. Filter by Status
+    if (selectedStatus !== "all") {
+      result = result.filter(o => o.status === selectedStatus);
     }
 
+    // 2. Filter by Search (Tên khách hoặc Tên gói)
     if (searchQuery) {
-      filtered = filtered.filter(
-        (order) =>
-          order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          order.packageName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          order.customerEmail.toLowerCase().includes(searchQuery.toLowerCase())
+      const lowerQuery = searchQuery.toLowerCase();
+      result = result.filter(
+        o =>
+          o.user?.name.toLowerCase().includes(lowerQuery) ||
+          o.plan?.name.toLowerCase().includes(lowerQuery) ||
+          String(o.id).includes(lowerQuery)
       );
     }
 
-    setFilteredOrders(filtered);
+    setFilteredOrders(result);
   };
 
   const onRefresh = () => {
@@ -95,519 +168,422 @@ export default function VendorOrders() {
     fetchOrders();
   };
 
-  const handleUpdateStatus = (orderId: number, newStatus: VendorOrder["status"]) => {
-    Alert.alert(
-      "Xác nhận",
-      `Bạn có chắc muốn đổi trạng thái đơn hàng thành "${getStatusText(newStatus)}"?`,
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xác nhận",
-          onPress: async () => {
-            try {
-              // TODO: Ghép API thật
-              // await vendorService.updateOrderStatus(orderId, newStatus);
-              
-              setOrders(
-                orders.map((order) =>
-                  order.id === orderId ? { ...order, status: newStatus } : order
-                )
-              );
-              Alert.alert("Thành công", "Đã cập nhật trạng thái đơn hàng");
-            } catch (error) {
-              Alert.alert("Lỗi", "Không thể cập nhật trạng thái");
-            }
-          },
-        },
-      ]
-    );
-  };
+  // --- ACTIONS (Duyệt/Hủy đơn) ---
+  const handleUpdateStatus = async (orderId: number, newStatus: string) => {
+    try {
+        const token = localStorage.getItem("auth_token");
+        // Gọi API cập nhật trạng thái (Sửa URL theo API thật của bạn)
+        const res = await fetch(`http://localhost:3000/vendor/orders/${orderId}/status`, {
+            method: 'PATCH', // hoặc PUT
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status: newStatus })
+        });
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
-
-  const formatDateTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return AppTheme.colors.success;
-      case "pending_payment":
-        return AppTheme.colors.warning;
-      case "expired":
-        return AppTheme.colors.textLight;
-      case "cancelled":
-        return AppTheme.colors.error;
-      default:
-        return AppTheme.colors.textSecondary;
+        if (res.ok) {
+            Alert.alert("Thành công", `Đã cập nhật đơn hàng #${orderId}`);
+            fetchOrders(); // Load lại data
+        } else {
+            Alert.alert("Lỗi", "Cập nhật thất bại");
+        }
+    } catch (e) {
+        Alert.alert("Lỗi", "Có lỗi xảy ra khi kết nối");
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "active":
-        return "Đang hoạt động";
-      case "pending_payment":
-        return "Chờ thanh toán";
-      case "expired":
-        return "Đã hết hạn";
-      case "cancelled":
-        return "Đã hủy";
-      default:
-        return status;
-    }
-  };
+  /* ================= RENDER ITEMS ================= */
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "active":
-        return "checkmark-circle";
-      case "pending_payment":
-        return "time";
-      case "expired":
-        return "close-circle";
-      case "cancelled":
-        return "ban";
-      default:
-        return "help-circle";
-    }
-  };
+  const renderStatusTabs = () => {
+    const tabs: { key: OrderStatus; label: string }[] = [
+      { key: "all", label: "Tất cả" },
+      { key: "pending", label: "Chờ duyệt" },
+      { key: "active", label: "Hoạt động" },
+      { key: "expired", label: "Hết hạn" },
+      { key: "cancelled", label: "Đã hủy" },
+    ];
 
-  if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text>Đang tải...</Text>
+      <View style={{ height: 50 }}>
+        <FlatList
+          data={tabs}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabContainer}
+          keyExtractor={(item) => item.key}
+          renderItem={({ item }) => {
+            const isActive = selectedStatus === item.key;
+            return (
+              <TouchableOpacity
+                style={[styles.tabItem, isActive && styles.tabItemActive]}
+                onPress={() => setSelectedStatus(item.key)}
+              >
+                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
       </View>
     );
-  }
+  };
+
+  const renderOrderItem = ({ item }: { item: VendorOrder }) => {
+    const isPending = item.status === 'pending' || item.status === 'pending_payment';
+
+    return (
+      <View style={styles.card}>
+        {/* Header Card: ID & Date */}
+        <View style={styles.cardHeader}>
+          <Text style={styles.orderId}>Đơn hàng #{item.id}</Text>
+          <Text style={styles.orderDate}>{formatDate(item.created_at)}</Text>
+        </View>
+
+        <View style={styles.divider} />
+
+        {/* Content: Customer & Plan */}
+        <View style={styles.cardBody}>
+          {/* Customer Info */}
+          <View style={styles.row}>
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>
+                {item.user?.name ? item.user.name.charAt(0).toUpperCase() : "U"}
+              </Text>
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.customerName}>{item.user?.name || "Unknown User"}</Text>
+              <Text style={styles.customerEmail}>{item.user?.email || ""}</Text>
+            </View>
+          </View>
+
+          {/* Plan Info (Nền xám nhẹ để nổi bật) */}
+          <View style={styles.planContainer}>
+             <View style={{flex: 1}}>
+                 <Text style={styles.planLabel}>Gói đăng ký</Text>
+                 <Text style={styles.planName}>{item.plan?.name || "Tên gói..."}</Text>
+                 <Text style={styles.planDuration}>
+                    Thời hạn: {item.plan?.duration_value} {item.plan?.duration_unit}
+                 </Text>
+             </View>
+             <View style={{alignItems: 'flex-end'}}>
+                 <Text style={styles.priceText}>{formatCurrency(item.amount)}</Text>
+                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                        {getStatusLabel(item.status)}
+                    </Text>
+                 </View>
+             </View>
+          </View>
+        </View>
+
+        {/* Action Buttons (Chỉ hiện khi Pending) */}
+        {isPending && (
+            <View style={styles.actionFooter}>
+                <TouchableOpacity 
+                    style={[styles.btnAction, styles.btnReject]}
+                    onPress={() => handleUpdateStatus(item.id, 'rejected')}
+                >
+                    <Text style={styles.btnTextReject}>Từ chối</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                    style={[styles.btnAction, styles.btnApprove]}
+                    onPress={() => handleUpdateStatus(item.id, 'active')}
+                >
+                    <Text style={styles.btnTextApprove}>Duyệt đơn</Text>
+                </TouchableOpacity>
+            </View>
+        )}
+      </View>
+    );
+  };
+
+  /* ================= MAIN UI ================= */
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      <StatusBar barStyle="light-content" />
+
+      {/* HEADER FIXED */}
       <LinearGradient
-        colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <Text style={styles.headerTitle}>Đơn hàng</Text>
-        <Text style={styles.headerSubtitle}>
-          {orders.length} đơn · {filteredOrders.length} hiển thị
-        </Text>
+              colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
+              style={styles.header}
+            >
+        <Text style={styles.headerTitle}>Quản lý đơn hàng</Text>
+        
+        {/* Search Input */}
+        <View style={styles.searchBox}>
+            <Ionicons name="search" size={20} color="#999" />
+            <TextInput 
+                style={styles.searchInput}
+                placeholder="Tìm tên khách, tên gói, mã đơn..."
+                placeholderTextColor="#CCC"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <Ionicons name="close-circle" size={20} color="#999" />
+                </TouchableOpacity>
+            )}
+        </View>
       </LinearGradient>
 
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={20} color={AppTheme.colors.textLight} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Tìm theo tên, email, gói..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+      {/* FILTER TABS */}
+      <View style={styles.filterSection}>
+        {renderStatusTabs()}
       </View>
 
-      {/* Filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterContainer}
-      >
-        {[
-          { key: "all", label: "Tất cả", count: orders.length },
-          { key: "active", label: "Đang hoạt động", count: orders.filter(o => o.status === "active").length },
-          { key: "pending_payment", label: "Chờ thanh toán", count: orders.filter(o => o.status === "pending_payment").length },
-          { key: "expired", label: "Đã hết hạn", count: orders.filter(o => o.status === "expired").length },
-          { key: "cancelled", label: "Đã hủy", count: orders.filter(o => o.status === "cancelled").length },
-        ].map((filter) => (
-          <Pressable
-            key={filter.key}
-            style={[
-              styles.filterChip,
-              statusFilter === filter.key && styles.filterChipActive,
-            ]}
-            onPress={() => setStatusFilter(filter.key)}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                statusFilter === filter.key && styles.filterChipTextActive,
-              ]}
-            >
-              {filter.label} ({filter.count})
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* Order List */}
-      <ScrollView
-        style={styles.orderList}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {filteredOrders.length > 0 ? (
-          filteredOrders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              {/* Customer Info */}
-              <View style={styles.orderHeader}>
-                <View style={styles.customerInfo}>
-                  <Ionicons
-                    name="person-circle"
-                    size={48}
-                    color={AppTheme.colors.primary}
-                  />
-                  <View style={styles.customerDetails}>
-                    <Text style={styles.customerName}>{order.customerName}</Text>
-                    <Text style={styles.customerEmail}>{order.customerEmail}</Text>
-                    <Text style={styles.orderDate}>
-                      Đặt: {formatDateTime(order.createdAt)}
-                    </Text>
-                  </View>
+      {/* ORDER LIST */}
+      {loading ? (
+        <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={AppTheme.colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+            data={filteredOrders}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderOrderItem}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            ListEmptyComponent={
+                <View style={styles.emptyState}>
+                    <Ionicons name="document-text-outline" size={64} color="#DDD" />
+                    <Text style={styles.emptyText}>Không tìm thấy đơn hàng nào</Text>
                 </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(order.status) + "20" },
-                  ]}
-                >
-                  <Ionicons
-                    name={getStatusIcon(order.status) as any}
-                    size={14}
-                    color={getStatusColor(order.status)}
-                  />
-                  <Text
-                    style={[
-                      styles.statusText,
-                      { color: getStatusColor(order.status) },
-                    ]}
-                  >
-                    {getStatusText(order.status)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Package Info */}
-              <View style={styles.orderBody}>
-                <View style={styles.packageInfo}>
-                  <Text style={styles.packageLabel}>Gói dịch vụ</Text>
-                  <Text style={styles.packageName}>{order.packageName}</Text>
-                </View>
-                <View style={styles.priceInfo}>
-                  <Text style={styles.amountLabel}>Giá trị</Text>
-                  <Text style={styles.amountValue}>
-                    {formatCurrency(order.amount)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Subscription Period */}
-              <View style={styles.periodContainer}>
-                <View style={styles.periodItem}>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={16}
-                    color={AppTheme.colors.textLight}
-                  />
-                  <Text style={styles.periodText}>
-                    {formatDate(order.startDate)} → {formatDate(order.endDate)}
-                  </Text>
-                </View>
-                {order.paymentMethod && (
-                  <View style={styles.periodItem}>
-                    <Ionicons
-                      name="card-outline"
-                      size={16}
-                      color={AppTheme.colors.textLight}
-                    />
-                    <Text style={styles.periodText}>{order.paymentMethod}</Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Actions */}
-              {order.status === "pending_payment" && (
-                <View style={styles.actionsContainer}>
-                  <Pressable
-                    style={[styles.actionButton, styles.approveButton]}
-                    onPress={() => handleUpdateStatus(order.id, "active")}
-                  >
-                    <Ionicons name="checkmark" size={20} color="#FFF" />
-                    <Text style={styles.actionButtonText}>Xác nhận thanh toán</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.actionButton, styles.cancelButton]}
-                    onPress={() => handleUpdateStatus(order.id, "cancelled")}
-                  >
-                    <Ionicons name="close" size={20} color={AppTheme.colors.error} />
-                    <Text style={[styles.actionButtonText, { color: AppTheme.colors.error }]}>
-                      Hủy
-                    </Text>
-                  </Pressable>
-                </View>
-              )}
-
-              {order.status === "active" && (
-                <View style={styles.actionsContainer}>
-                  <Pressable
-                    style={[styles.actionButton, styles.expireButton]}
-                    onPress={() => handleUpdateStatus(order.id, "expired")}
-                  >
-                    <Ionicons name="time-outline" size={20} color={AppTheme.colors.textLight} />
-                    <Text style={[styles.actionButtonText, { color: AppTheme.colors.textLight }]}>
-                      Đánh dấu hết hạn
-                    </Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={64} color="#CCC" />
-            <Text style={styles.emptyText}>Không tìm thấy đơn hàng nào</Text>
-          </View>
-        )}
-        <View style={{ height: 32 }} />
-      </ScrollView>
+            }
+        />
+      )}
     </View>
   );
 }
 
+/* ================= STYLES ================= */
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: AppTheme.colors.background,
+    backgroundColor: "#F5F6FA",
   },
-  loadingContainer: {
+  centerContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center'
   },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
+  
+  /* HEADER */
+  header: { padding: 20, paddingTop: 40, paddingBottom: 20 },
+
   headerTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
     color: "#FFF",
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    marginBottom: 16,
+    textAlign: 'center'
   },
   searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 12,
-    gap: 8,
-    ...AppTheme.shadow.sm,
+    paddingHorizontal: 12,
+    height: 44,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)'
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
-    color: AppTheme.colors.textPrimary,
+    marginLeft: 8,
+    color: '#FFF',
+    fontSize: 14,
   },
-  filterContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
+
+  /* TABS */
+  filterSection: {
+    marginTop: 12,
+    marginBottom: 4,
   },
-  filterChip: {
+  tabContainer: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  tabItem: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#FFF",
-    marginRight: 8,
+    backgroundColor: '#FFF',
     borderWidth: 1,
-    borderColor: AppTheme.colors.divider,
+    borderColor: '#E0E0E0',
+    justifyContent: 'center',
+    height: 36,
   },
-  filterChipActive: {
+  tabItemActive: {
     backgroundColor: AppTheme.colors.primary,
     borderColor: AppTheme.colors.primary,
   },
-  filterChipText: {
-    fontSize: 14,
-    color: AppTheme.colors.textSecondary,
-    fontWeight: "500",
+  tabText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#666',
   },
-  filterChipTextActive: {
-    color: "#FFF",
+  tabTextActive: {
+    color: '#FFF',
+    fontWeight: '600',
   },
-  orderList: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  orderCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
+
+  /* LIST & CARD */
+  listContent: {
     padding: 16,
-    marginBottom: 12,
-    ...AppTheme.shadow.md,
+    paddingBottom: 40,
   },
-  orderHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+  card: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: 'hidden'
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  orderId: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333'
+  },
+  orderDate: {
+    fontSize: 13,
+    color: '#888'
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    marginHorizontal: 16,
+  },
+  
+  /* CARD BODY */
+  cardBody: {
+    padding: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  customerInfo: {
-    flexDirection: "row",
-    flex: 1,
-    gap: 12,
+  avatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E3F2FD',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  customerDetails: {
-    flex: 1,
+  avatarText: {
+    color: '#2196F3',
+    fontWeight: '700',
+    fontSize: 16
   },
   customerName: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: AppTheme.colors.textPrimary,
-    marginBottom: 2,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333'
   },
   customerEmail: {
     fontSize: 13,
-    color: AppTheme.colors.textSecondary,
-    marginBottom: 4,
+    color: '#888'
   },
-  orderDate: {
+  
+  /* PLAN INFO BOX */
+  planContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFC',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F0F0F0'
+  },
+  planLabel: {
+    fontSize: 11,
+    color: '#999',
+    textTransform: 'uppercase',
+    marginBottom: 2
+  },
+  planName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 2
+  },
+  planDuration: {
     fontSize: 12,
-    color: AppTheme.colors.textLight,
+    color: '#666'
+  },
+  priceText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: AppTheme.colors.primary,
+    marginBottom: 6
   },
   statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: '700',
   },
-  orderBody: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 12,
+
+  /* FOOTER ACTIONS */
+  actionFooter: {
+    flexDirection: 'row',
     borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: AppTheme.colors.divider,
-  },
-  packageInfo: {
-    flex: 1,
-  },
-  packageLabel: {
-    fontSize: 12,
-    color: AppTheme.colors.textLight,
-    marginBottom: 4,
-  },
-  packageName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: AppTheme.colors.textPrimary,
-  },
-  priceInfo: {
-    alignItems: "flex-end",
-  },
-  amountLabel: {
-    fontSize: 12,
-    color: AppTheme.colors.textLight,
-    marginBottom: 4,
-  },
-  amountValue: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: AppTheme.colors.primary,
-  },
-  periodContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 12,
+    borderTopColor: '#F0F0F0',
+    padding: 12,
     gap: 12,
   },
-  periodItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  periodText: {
-    fontSize: 13,
-    color: AppTheme.colors.textSecondary,
-  },
-  actionsContainer: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: AppTheme.colors.divider,
-  },
-  actionButton: {
+  btnAction: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  approveButton: {
-    backgroundColor: AppTheme.colors.success,
+  btnReject: {
+    backgroundColor: '#FFEBEE',
   },
-  cancelButton: {
-    backgroundColor: AppTheme.colors.backgroundCard,
+  btnApprove: {
+    backgroundColor: '#E8F5E9',
   },
-  expireButton: {
-    backgroundColor: AppTheme.colors.backgroundCard,
+  btnTextReject: {
+    color: '#D32F2F',
+    fontWeight: '600',
+    fontSize: 14
   },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFF",
+  btnTextApprove: {
+    color: '#388E3C',
+    fontWeight: '600',
+    fontSize: 14
   },
+
+  /* EMPTY STATE */
   emptyState: {
-    alignItems: "center",
-    paddingVertical: 60,
+    alignItems: 'center',
+    marginTop: 60,
   },
   emptyText: {
-    fontSize: 16,
-    color: AppTheme.colors.textLight,
+    color: '#999',
     marginTop: 16,
-  },
+    fontSize: 14
+  }
 });
