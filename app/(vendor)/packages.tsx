@@ -1,20 +1,18 @@
-import React, { useState, useEffect } from "react";
+import { AppTheme } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
+  Alert,
+  Dimensions,
+  Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
-  Pressable,
+  Text,
   TextInput,
-  Modal,
-  Alert,
-  RefreshControl,
-  Dimensions,
+  View
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { vendorService } from "@/services/vendor.service";
-import { AppTheme } from "@/constants/theme";
 
 const { width } = Dimensions.get("window");
 
@@ -450,7 +448,7 @@ export default function VendorPackages() {
       </ScrollView>
 
       {/* Create/Edit Modal */}
-      <Modal
+      {/* <Modal
         visible={modalVisible}
         animationType="slide"
         transparent
@@ -565,7 +563,7 @@ export default function VendorPackages() {
             </View>
           </View>
         </View>
-      </Modal>
+      </Modal> */}
     </View>
   );
 }
