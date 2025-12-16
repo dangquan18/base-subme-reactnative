@@ -42,7 +42,7 @@ interface VendorPackage {
   status: "pending" | "approved" | "rejected";
   subscriber_count: number; // API là subscriber_count
   category_id: number;
-  imageUrl?: string | null; // API là imageUrl
+  image?: string | null; // API là imageUrl
   category?: {
     name: string;
   };
@@ -213,7 +213,7 @@ export default function VendorPackages() {
       duration_unit: formData.duration_unit,
       category_id: Number(formData.category_id),
       features: formData.features,
-      imageUrl: formData.image, // Map với field backend (check lại là image hay imageUrl)
+      image: formData.image, // Map với field backend (check lại là image hay imageUrl)
     };
 
     try {
