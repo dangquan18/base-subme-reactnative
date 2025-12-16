@@ -16,6 +16,9 @@ import {
   View
 } from "react-native";
 
+// LƯU Ý: Nếu chạy trên Mobile thật (Android/iOS), hãy đổi localStorage thành AsyncStorage
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const { width } = Dimensions.get("window");
 
 /* ================= TYPES ================= */
@@ -25,23 +28,19 @@ type OrderStatus = "all" | "pending" | "active" | "expired" | "cancelled" | "rej
 
 interface VendorOrder {
   id: number;
-  user_id: number;
-  plan_id: number;
-  amount: string; // API thường trả string cho decimal
-  status: string; // 'pending' | 'active' | ...
+  status: string; // 'active', 'pending', etc.
   start_date: string;
   end_date: string;
-  created_at: string;
-  // Join tables (Giả định cấu trúc trả về từ Backend)
+  // Cấu trúc mới từ API
+  plan: {
+    id: number;
+    name: string;
+    price: number;
+  };
   user: {
+    id: number;
     name: string;
     email: string;
-    avatar?: string;
-  };
-  plan: {
-    name: string;
-    duration_value: number;
-    duration_unit: string;
   };
 }
 
@@ -69,7 +68,6 @@ const getStatusColor = (status: string) => {
   switch (status) {
     case "active": return "#4CAF50"; // Xanh lá
     case "pending": return "#FF9800"; // Cam
-    case "pending_payment": return "#FF9800";
     case "expired": return "#9E9E9E"; // Xám
     case "cancelled": return "#F44336"; // Đỏ
     case "rejected": return "#D32F2F"; // Đỏ đậm
@@ -81,7 +79,6 @@ const getStatusLabel = (status: string) => {
   switch (status) {
     case "active": return "Đang hoạt động";
     case "pending": return "Chờ duyệt";
-    case "pending_payment": return "Chờ thanh toán";
     case "expired": return "Hết hạn";
     case "cancelled": return "Đã hủy";
     case "rejected": return "Đã từ chối";
@@ -105,7 +102,7 @@ export default function VendorOrders() {
     fetchOrders();
   }, []);
 
-  // Logic lọc client-side (giúp app mượt hơn đỡ gọi API nhiều lần)
+  // Logic lọc client-side
   useEffect(() => {
     filterOrders();
   }, [orders, searchQuery, selectedStatus]);
@@ -113,20 +110,21 @@ export default function VendorOrders() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
+      // Lấy token (Lưu ý: localStorage chỉ chạy trên web, mobile cần AsyncStorage)
       const token = localStorage.getItem("auth_token");
       
       const res = await fetch("http://localhost:3000/vendor/orders", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          "Authorization": `Bearer ${token}`, // Gắn token vào header
         },
       });
 
       if (res.ok) {
         const data = await res.json();
-        // Giả sử API trả về { data: [...] } hoặc [...]
-        const list = Array.isArray(data) ? data : data.data || [];
+        // SỬA: Lấy data.orders theo cấu trúc JSON mới
+        const list = data.orders || [];
         setOrders(list);
       } else {
         console.log("Fetch orders failed");
@@ -172,9 +170,8 @@ export default function VendorOrders() {
   const handleUpdateStatus = async (orderId: number, newStatus: string) => {
     try {
         const token = localStorage.getItem("auth_token");
-        // Gọi API cập nhật trạng thái (Sửa URL theo API thật của bạn)
         const res = await fetch(`http://localhost:3000/vendor/orders/${orderId}/status`, {
-            method: 'PATCH', // hoặc PUT
+            method: 'PATCH',
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}`,
@@ -184,7 +181,7 @@ export default function VendorOrders() {
 
         if (res.ok) {
             Alert.alert("Thành công", `Đã cập nhật đơn hàng #${orderId}`);
-            fetchOrders(); // Load lại data
+            fetchOrders(); 
         } else {
             Alert.alert("Lỗi", "Cập nhật thất bại");
         }
@@ -231,14 +228,15 @@ export default function VendorOrders() {
   };
 
   const renderOrderItem = ({ item }: { item: VendorOrder }) => {
-    const isPending = item.status === 'pending' || item.status === 'pending_payment';
+    const isPending = item.status === 'pending';
 
     return (
       <View style={styles.card}>
         {/* Header Card: ID & Date */}
         <View style={styles.cardHeader}>
           <Text style={styles.orderId}>Đơn hàng #{item.id}</Text>
-          <Text style={styles.orderDate}>{formatDate(item.created_at)}</Text>
+          {/* Hiển thị ngày tạo (dùng start_date làm ngày tạo tạm thời nếu API k có created_at) */}
+          <Text style={styles.orderDate}>{formatDate(item.start_date)}</Text>
         </View>
 
         <View style={styles.divider} />
@@ -258,17 +256,19 @@ export default function VendorOrders() {
             </View>
           </View>
 
-          {/* Plan Info (Nền xám nhẹ để nổi bật) */}
+          {/* Plan Info */}
           <View style={styles.planContainer}>
              <View style={{flex: 1}}>
                  <Text style={styles.planLabel}>Gói đăng ký</Text>
                  <Text style={styles.planName}>{item.plan?.name || "Tên gói..."}</Text>
+                 {/* SỬA: Hiển thị ngày hết hạn thay vì duration text */}
                  <Text style={styles.planDuration}>
-                    Thời hạn: {item.plan?.duration_value} {item.plan?.duration_unit}
+                    Hết hạn: {formatDate(item.end_date)}
                  </Text>
              </View>
              <View style={{alignItems: 'flex-end'}}>
-                 <Text style={styles.priceText}>{formatCurrency(item.amount)}</Text>
+                 {/* SỬA: Lấy price từ item.plan.price */}
+                 <Text style={styles.priceText}>{formatCurrency(item.plan?.price || 0)}</Text>
                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
                     <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
                         {getStatusLabel(item.status)}
@@ -278,7 +278,7 @@ export default function VendorOrders() {
           </View>
         </View>
 
-        {/* Action Buttons (Chỉ hiện khi Pending) */}
+        {/* Action Buttons */}
         {isPending && (
             <View style={styles.actionFooter}>
                 <TouchableOpacity 
@@ -362,7 +362,7 @@ export default function VendorOrders() {
 }
 
 /* ================= STYLES ================= */
-
+// (Giữ nguyên styles như cũ của bạn, không cần thay đổi)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
