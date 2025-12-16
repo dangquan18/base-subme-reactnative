@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 // Ở đây tôi giữ nguyên localStorage theo code cũ của bạn vì có thể bạn đang chạy web hoặc có shim.
 import { Picker } from "@react-native-picker/picker";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -87,6 +88,7 @@ const getStatusLabel = (status: string) => {
 /* ================= COMPONENT ================= */
 
 export default function VendorPackages() {
+  const router = useRouter();
   const [packages, setPackages] = useState<VendorPackage[]>([]);
   const [filteredPackages, setFilteredPackages] = useState<VendorPackage[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -266,7 +268,7 @@ export default function VendorPackages() {
 
   // Render từng Card gói dịch vụ
   const renderPackageItem = (item: VendorPackage) => (
-    <View key={item.id} style={styles.card}>
+    <TouchableOpacity key={item.id} style={styles.card} onPress={() => router.push(`/package/${item.id}`)}>
         {/* Header Card: Tên + Status */}
         <View style={styles.cardHeader}>
             <View style={{flex: 1}}>
@@ -299,7 +301,7 @@ export default function VendorPackages() {
                  {item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : ''}
              </Text>
         </View>
-    </View>
+    </TouchableOpacity>
   );
 
   /* ================= MAIN RENDER ================= */
