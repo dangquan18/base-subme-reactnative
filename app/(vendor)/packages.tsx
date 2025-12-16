@@ -1,121 +1,158 @@
-import React, { useState, useEffect } from "react";
+import { AppTheme } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+// Lưu ý: React Native thuần không có localStorage, hãy dùng AsyncStorage nếu chạy trên mobile thật.
+// Ở đây tôi giữ nguyên localStorage theo code cũ của bạn vì có thể bạn đang chạy web hoặc có shim.
+import { Picker } from "@react-native-picker/picker";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
+  Alert,
+  Modal,
+  Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
-  Pressable,
+  Text,
   TextInput,
-  Modal,
-  Alert,
-  RefreshControl,
-  Dimensions,
+  TouchableOpacity,
+  View
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { vendorService } from "@/services/vendor.service";
-import { AppTheme } from "@/constants/theme";
 
-const { width } = Dimensions.get("window");
+/* ================= TYPES ================= */
+
+type DurationUnit = "ngày" | "tuần" | "tháng" | "năm";
+
+const DURATION_UNITS: DurationUnit[] = ["ngày", "tuần", "tháng", "năm"];
+
+// Định nghĩa Status để lọc
+type PackageStatus = "all" | "pending" | "approved" | "rejected";
+
+interface Category {
+  id: number;
+  name: string;
+}
 
 interface VendorPackage {
   id: number;
   name: string;
   description: string;
-  price: number;
-  duration: number;
+  price: string; // API trả về string "12.00"
+  duration_value: number;
+  duration_unit: DurationUnit;
   status: "pending" | "approved" | "rejected";
-  subscribers: number;
-  category: string;
-  imageUrl?: string;
-  features: string[];
+  subscriber_count: number; // API là subscriber_count
+  category_id: number;
+  imageUrl?: string | null; // API là imageUrl
+  category?: {
+    name: string;
+  };
+  createdAt?: string;
 }
+
+/* ================= HELPER ================= */
+
+const formatCurrency = (amount: string | number) => {
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+  }).format(Number(amount));
+};
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "approved":
+      return "#4CAF50"; // Green
+    case "pending":
+      return "#FF9800"; // Orange
+    case "rejected":
+      return "#F44336"; // Red
+    default:
+      return "#9E9E9E"; // Grey
+  }
+};
+
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case "approved":
+      return "Đã duyệt";
+    case "pending":
+      return "Chờ duyệt";
+    case "rejected":
+      return "Từ chối";
+    default:
+      return status;
+  }
+};
+
+/* ================= COMPONENT ================= */
 
 export default function VendorPackages() {
   const [packages, setPackages] = useState<VendorPackage[]>([]);
   const [filteredPackages, setFilteredPackages] = useState<VendorPackage[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState<VendorPackage | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  
+  // State cho bộ lọc
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<PackageStatus>("all");
 
-  // Form state
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     price: "",
-    duration: "",
-    category: "",
+    duration_value: "",
+    duration_unit: "tháng" as DurationUnit,
+    category_id: "",
     features: "",
+    image: "",
   });
 
+  /* ================= FETCH ================= */
+
   useEffect(() => {
+    fetchCategories();
     fetchPackages();
   }, []);
 
+  // Lọc dữ liệu mỗi khi packages, search hoặc status thay đổi
   useEffect(() => {
     filterPackages();
-  }, [packages, statusFilter, searchQuery]);
+  }, [packages, searchQuery, selectedStatus]);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch("http://localhost:3000/categories");
+      const data = await res.json();
+      setCategories(data);
+    } catch {
+      // Alert.alert("Lỗi", "Không tải được danh mục");
+      console.log("Err cat");
+    }
+  };
 
   const fetchPackages = async () => {
     try {
       setLoading(true);
-      // TODO: Ghép API thật
-      // const data = await vendorService.getPackages();
-      
-      // Mock data
-      const mockPackages: VendorPackage[] = [
-        {
-          id: 1,
-          name: "Gói Cà Phê Premium",
-          description: "10 cốc cà phê cao cấp mỗi tháng",
-          price: 599000,
-          duration: 30,
-          status: "approved",
-          subscribers: 85,
-          category: "Đồ uống",
-          features: ["Cà phê chất lượng cao", "Giao hàng miễn phí", "Ưu đãi đặc biệt"],
-        },
-        {
-          id: 2,
-          name: "Gói Cơm Trưa",
-          description: "20 suất cơm trưa mỗi tháng",
-          price: 250000,
-          duration: 30,
-          status: "approved",
-          subscribers: 62,
-          category: "Ăn uống",
-          features: ["Cơm nóng mỗi ngày", "Menu đa dạng", "Giao tận nơi"],
-        },
-        {
-          id: 3,
-          name: "Gói Đồ Uống",
-          description: "15 ly trà sữa mỗi tháng",
-          price: 450000,
-          duration: 30,
-          status: "pending",
-          subscribers: 48,
-          category: "Đồ uống",
-          features: ["Nhiều hương vị", "Size vừa/lớn", "Topping miễn phí"],
-        },
-        {
-          id: 4,
-          name: "Gói Gym Premium",
-          description: "Tập gym không giới hạn",
-          price: 899000,
-          duration: 30,
-          status: "rejected",
-          subscribers: 12,
-          category: "Thể thao",
-          features: ["Tập không giới hạn", "HLV cá nhân", "Phòng tắm miễn phí"],
-        },
-      ];
+      // Gọi API thật để lấy danh sách gói
+      // Lấy token từ localStorage (hoặc AsyncStorage tùy môi trường)
+      const token = localStorage.getItem("auth_token");
 
-      setPackages(mockPackages);
+      const res = await fetch("http://localhost:3000/vendor/packages", {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`, // Đã gắn Bearer Token
+        }
+      });
+      
+      if (!res.ok) throw new Error("Failed to fetch");
+      
+      const data = await res.json();
+      setPackages(data); // data format giống như bạn cung cấp
     } catch (error) {
-      console.error("Error fetching packages:", error);
+      Alert.alert("Lỗi", "Không tải được danh sách gói dịch vụ");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -123,648 +160,456 @@ export default function VendorPackages() {
   };
 
   const filterPackages = () => {
-    let filtered = packages;
+    let data = packages;
 
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((pkg) => pkg.status === statusFilter);
+    // 1. Lọc theo Tab Status
+    if (selectedStatus !== "all") {
+      data = data.filter((p) => p.status === selectedStatus);
     }
 
+    // 2. Lọc theo Search Query
     if (searchQuery) {
-      filtered = filtered.filter(
-        (pkg) =>
-          pkg.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          pkg.description.toLowerCase().includes(searchQuery.toLowerCase())
+      data = data.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.description.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-
-    setFilteredPackages(filtered);
+    setFilteredPackages(data);
   };
+
+  /* ================= ACTION ================= */
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchPackages();
   };
 
-  const handleCreatePackage = () => {
-    setSelectedPackage(null);
+  const openCreateModal = () => {
     setFormData({
       name: "",
       description: "",
       price: "",
-      duration: "",
-      category: "",
+      duration_value: "",
+      duration_unit: "tháng",
+      category_id: "",
       features: "",
+      image: "",
     });
     setModalVisible(true);
-  };
-
-  const handleEditPackage = (pkg: VendorPackage) => {
-    setSelectedPackage(pkg);
-    setFormData({
-      name: pkg.name,
-      description: pkg.description,
-      price: pkg.price.toString(),
-      duration: pkg.duration.toString(),
-      category: pkg.category,
-      features: pkg.features.join(", "),
-    });
-    setModalVisible(true);
-  };
-
-  const handleDeletePackage = (id: number) => {
-    Alert.alert(
-      "Xác nhận xóa",
-      "Bạn có chắc muốn xóa gói dịch vụ này?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              // TODO: Ghép API thật
-              // await vendorService.deletePackage(id);
-              
-              setPackages(packages.filter((pkg) => pkg.id !== id));
-              Alert.alert("Thành công", "Đã xóa gói dịch vụ");
-            } catch (error) {
-              Alert.alert("Lỗi", "Không thể xóa gói dịch vụ");
-            }
-          },
-        },
-      ]
-    );
   };
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.price || !formData.duration) {
-      Alert.alert("Lỗi", "Vui lòng điền đầy đủ thông tin");
+    if (!formData.name || !formData.price || !formData.duration_value || !formData.category_id) {
+      Alert.alert("Lỗi", "Vui lòng nhập đủ thông tin bắt buộc");
       return;
     }
 
+    const payload = {
+      name: formData.name,
+      description: formData.description,
+      price: Number(formData.price),
+      duration_value: Number(formData.duration_value),
+      duration_unit: formData.duration_unit,
+      category_id: Number(formData.category_id),
+      features: formData.features,
+      imageUrl: formData.image, // Map với field backend (check lại là image hay imageUrl)
+    };
+
     try {
-      const packageData = {
-        name: formData.name,
-        description: formData.description,
-        price: parseFloat(formData.price),
-        duration: parseInt(formData.duration),
-        category: formData.category,
-        features: formData.features.split(",").map((f) => f.trim()).filter(Boolean),
-      };
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch("http://localhost:3000/vendor/packages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`, // Đã gắn Bearer Token
+        },
+        body: JSON.stringify(payload),
+      });
 
-      if (selectedPackage) {
-        // TODO: Ghép API thật
-        // await vendorService.updatePackage(selectedPackage.id, packageData);
-        
-        setPackages(
-          packages.map((pkg) =>
-            pkg.id === selectedPackage.id
-              ? { ...pkg, ...packageData }
-              : pkg
-          )
-        );
-        Alert.alert("Thành công", "Đã cập nhật gói dịch vụ");
-      } else {
-        // TODO: Ghép API thật
-        // const newPackage = await vendorService.createPackage(packageData);
-        
-        const newPackage: VendorPackage = {
-          id: Date.now(),
-          ...packageData,
-          status: "pending",
-          subscribers: 0,
-        };
-        setPackages([newPackage, ...packages]);
-        Alert.alert("Thành công", "Đã tạo gói dịch vụ mới");
-      }
+      if (!res.ok) throw new Error();
 
+      Alert.alert("Thành công", "Đã tạo gói mới");
       setModalVisible(false);
-    } catch (error) {
-      Alert.alert("Lỗi", "Có lỗi xảy ra khi lưu gói dịch vụ");
+      fetchPackages();
+    } catch {
+      Alert.alert("Lỗi", "Tạo gói thất bại");
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(amount);
-  };
+  /* ================= UI COMPONENTS ================= */
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "approved":
-        return AppTheme.colors.success;
-      case "pending":
-        return AppTheme.colors.warning;
-      case "rejected":
-        return AppTheme.colors.error;
-      default:
-        return AppTheme.colors.textSecondary;
-    }
-  };
+  // Render các Tab trạng thái
+  const renderStatusTabs = () => (
+    <View style={styles.tabContainer}>
+      {(["all", "pending", "approved", "rejected"] as PackageStatus[]).map((status) => (
+        <TouchableOpacity
+          key={status}
+          style={[
+            styles.tabItem,
+            selectedStatus === status && styles.tabItemActive,
+          ]}
+          onPress={() => setSelectedStatus(status)}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              selectedStatus === status && styles.tabTextActive,
+            ]}
+          >
+            {status === "all" ? "Tất cả" : getStatusLabel(status)}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "approved":
-        return "Đã duyệt";
-      case "pending":
-        return "Chờ duyệt";
-      case "rejected":
-        return "Từ chối";
-      default:
-        return status;
-    }
-  };
+  // Render từng Card gói dịch vụ
+  const renderPackageItem = (item: VendorPackage) => (
+    <View key={item.id} style={styles.card}>
+        {/* Header Card: Tên + Status */}
+        <View style={styles.cardHeader}>
+            <View style={{flex: 1}}>
+                 <Text style={styles.cardCategory}>{item.category?.name || "Dịch vụ"}</Text>
+                 <Text style={styles.cardTitle}>{item.name}</Text>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}> 
+                <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                    {getStatusLabel(item.status)}
+                </Text>
+            </View>
+        </View>
+
+        {/* Nội dung chính */}
+        <View style={styles.cardBody}>
+            <Text style={styles.cardPrice}>
+                {formatCurrency(item.price)} 
+                <Text style={styles.cardDuration}> / {item.duration_value} {item.duration_unit}</Text>
+            </Text>
+            <Text style={styles.cardDescription} numberOfLines={2}>{item.description}</Text>
+        </View>
+
+        {/* Footer: Thông tin thêm */}
+        <View style={styles.cardFooter}>
+             <View style={styles.statItem}>
+                <Ionicons name="people-outline" size={16} color="#666" />
+                <Text style={styles.statText}>{item.subscriber_count} đăng ký</Text>
+             </View>
+             <Text style={styles.dateText}>
+                 {item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : ''}
+             </Text>
+        </View>
+    </View>
+  );
+
+  /* ================= MAIN RENDER ================= */
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>Đang tải...</Text>
+        <Text>Đang tải dữ liệu...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* HEADER */}
       <LinearGradient
         colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
         style={styles.header}
       >
-        <Text style={styles.headerTitle}>Gói dịch vụ</Text>
-        <Text style={styles.headerSubtitle}>
-          {packages.length} gói · {filteredPackages.length} hiển thị
-        </Text>
+        <Text style={styles.headerTitle}>Quản lý gói dịch vụ</Text>
       </LinearGradient>
 
-      {/* Search and Add */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={20} color={AppTheme.colors.textLight} />
-          <TextInput
+      {/* FILTER & SEARCH */}
+      <View style={styles.filterSection}>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#999" style={{marginRight: 8}}/>
+            <TextInput
             style={styles.searchInput}
-            placeholder="Tìm kiếm gói dịch vụ..."
+            placeholder="Tìm kiếm tên gói..."
             value={searchQuery}
             onChangeText={setSearchQuery}
-          />
+            />
+            <Pressable style={styles.addButton} onPress={openCreateModal}>
+            <Ionicons name="add" size={24} color="#FFF" />
+            </Pressable>
         </View>
-        <Pressable style={styles.addButton} onPress={handleCreatePackage}>
-          <Ionicons name="add" size={24} color="#FFF" />
-        </Pressable>
+        {renderStatusTabs()}
       </View>
 
-      {/* Filter */}
+      {/* LIST */}
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterContainer}
-      >
-        {[
-          { key: "all", label: "Tất cả" },
-          { key: "approved", label: "Đã duyệt" },
-          { key: "pending", label: "Chờ duyệt" },
-          { key: "rejected", label: "Từ chối" },
-        ].map((filter) => (
-          <Pressable
-            key={filter.key}
-            style={[
-              styles.filterChip,
-              statusFilter === filter.key && styles.filterChipActive,
-            ]}
-            onPress={() => setStatusFilter(filter.key)}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                statusFilter === filter.key && styles.filterChipTextActive,
-              ]}
-            >
-              {filter.label}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* Package List */}
-      <ScrollView
-        style={styles.packageList}
+        contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {filteredPackages.length > 0 ? (
-          filteredPackages.map((pkg) => (
-            <View key={pkg.id} style={styles.packageCard}>
-              <View style={styles.packageHeader}>
-                <View style={styles.packageTitle}>
-                  <Text style={styles.packageName}>{pkg.name}</Text>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      { backgroundColor: getStatusColor(pkg.status) + "20" },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: getStatusColor(pkg.status) },
-                      ]}
-                    >
-                      {getStatusText(pkg.status)}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.packageActions}>
-                  <Pressable
-                    style={styles.actionButton}
-                    onPress={() => handleEditPackage(pkg)}
-                  >
-                    <Ionicons name="create-outline" size={20} color={AppTheme.colors.primary} />
-                  </Pressable>
-                  <Pressable
-                    style={styles.actionButton}
-                    onPress={() => handleDeletePackage(pkg.id)}
-                  >
-                    <Ionicons name="trash-outline" size={20} color={AppTheme.colors.error} />
-                  </Pressable>
-                </View>
-              </View>
-
-              <Text style={styles.packageDescription} numberOfLines={2}>
-                {pkg.description}
-              </Text>
-
-              <View style={styles.packageStats}>
-                <View style={styles.packageStat}>
-                  <Ionicons name="pricetag" size={16} color={AppTheme.colors.primary} />
-                  <Text style={styles.packageStatText}>
-                    {formatCurrency(pkg.price)}
-                  </Text>
-                </View>
-                <View style={styles.packageStat}>
-                  <Ionicons name="time" size={16} color={AppTheme.colors.textLight} />
-                  <Text style={styles.packageStatText}>{pkg.duration} ngày</Text>
-                </View>
-                <View style={styles.packageStat}>
-                  <Ionicons name="people" size={16} color={AppTheme.colors.success} />
-                  <Text style={styles.packageStatText}>
-                    {pkg.subscribers} người đăng ký
-                  </Text>
-                </View>
-              </View>
-
-              {pkg.features && pkg.features.length > 0 && (
-                <View style={styles.featuresContainer}>
-                  {pkg.features.slice(0, 2).map((feature, index) => (
-                    <View key={index} style={styles.featureItem}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={14}
-                        color={AppTheme.colors.success}
-                      />
-                      <Text style={styles.featureText}>{feature}</Text>
-                    </View>
-                  ))}
-                  {pkg.features.length > 2 && (
-                    <Text style={styles.moreFeatures}>
-                      +{pkg.features.length - 2} tính năng khác
-                    </Text>
-                  )}
-                </View>
-              )}
-            </View>
-          ))
-        ) : (
+        {filteredPackages.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="cube-outline" size={64} color="#CCC" />
-            <Text style={styles.emptyText}>Chưa có gói dịch vụ nào</Text>
-            <Pressable style={styles.emptyButton} onPress={handleCreatePackage}>
-              <Text style={styles.emptyButtonText}>Tạo gói mới</Text>
-            </Pressable>
+            <Ionicons name="cube-outline" size={64} color="#DDD" />
+            <Text style={{color: '#999', marginTop: 12}}>Không tìm thấy gói dịch vụ nào</Text>
           </View>
+        ) : (
+          filteredPackages.map(renderPackageItem)
         )}
-        <View style={{ height: 32 }} />
       </ScrollView>
 
-      {/* Create/Edit Modal */}
+      {/* ================= MODAL CREATE (Giữ nguyên logic cũ) ================= */}
       <Modal
         visible={modalVisible}
-        animationType="slide"
         transparent
+        animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {selectedPackage ? "Sửa gói dịch vụ" : "Tạo gói mới"}
-              </Text>
-              <Pressable onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={AppTheme.colors.textPrimary} />
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setModalVisible(false)}
+        >
+          <Pressable style={styles.modalContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Tạo gói mới</Text>
+
+              <TextInput
+                style={styles.input}
+                placeholder="Tên gói *"
+                value={formData.name}
+                onChangeText={(v) => setFormData({ ...formData, name: v })}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Mô tả"
+                value={formData.description}
+                onChangeText={(v) =>
+                  setFormData({ ...formData, description: v })
+                }
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Giá (VNĐ) *"
+                keyboardType="numeric"
+                value={formData.price}
+                onChangeText={(v) => setFormData({ ...formData, price: v })}
+              />
+
+              {/* DURATION */}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Thời hạn *"
+                  keyboardType="numeric"
+                  value={formData.duration_value}
+                  onChangeText={(v) =>
+                    setFormData({ ...formData, duration_value: v })
+                  }
+                />
+
+                <View style={[styles.pickerWrapper, { flex: 1 }]}>
+                  <Picker
+                    selectedValue={formData.duration_unit}
+                    onValueChange={(value) =>
+                      setFormData({
+                        ...formData,
+                        duration_unit: value as DurationUnit,
+                      })
+                    }
+                  >
+                    {DURATION_UNITS.map((u) => (
+                      <Picker.Item key={u} label={u} value={u} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+
+              {/* CATEGORY */}
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={formData.category_id}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, category_id: String(value) })
+                  }
+                >
+                  <Picker.Item label="-- Chọn danh mục * --" value="" />
+                  {categories.map((c) => (
+                    <Picker.Item key={c.id} label={c.name} value={c.id} />
+                  ))}
+                </Picker>
+              </View>
+
+              <TextInput
+                style={styles.input}
+                placeholder="Features (cách nhau bởi dấu phẩy)"
+                value={formData.features}
+                onChangeText={(v) =>
+                  setFormData({ ...formData, features: v })
+                }
+              />
+
+               <TextInput
+                style={styles.input}
+                placeholder="Link ảnh (URL)"
+                value={formData.image}
+                onChangeText={(v) =>
+                  setFormData({ ...formData, image: v })
+                }
+              />
+
+              <Pressable style={styles.submitButton} onPress={handleSubmit}>
+                <Text style={styles.submitText}>Tạo gói</Text>
               </Pressable>
-            </View>
-
-            <ScrollView style={styles.modalBody}>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Tên gói *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="VD: Gói Cà Phê Premium"
-                  value={formData.name}
-                  onChangeText={(text) => setFormData({ ...formData, name: text })}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Mô tả</Text>
-                <TextInput
-                  style={[styles.formInput, styles.formTextArea]}
-                  placeholder="Mô tả chi tiết gói dịch vụ..."
-                  value={formData.description}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, description: text })
-                  }
-                  multiline
-                  numberOfLines={3}
-                />
-              </View>
-
-              <View style={styles.formRow}>
-                <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.formLabel}>Giá (VNĐ) *</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="299000"
-                    value={formData.price}
-                    onChangeText={(text) =>
-                      setFormData({ ...formData, price: text })
-                    }
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.formLabel}>Thời hạn (ngày) *</Text>
-                  <TextInput
-                    style={styles.formInput}
-                    placeholder="30"
-                    value={formData.duration}
-                    onChangeText={(text) =>
-                      setFormData({ ...formData, duration: text })
-                    }
-                    keyboardType="numeric"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Danh mục</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="VD: Đồ uống, Ăn uống..."
-                  value={formData.category}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, category: text })
-                  }
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Tính năng (cách nhau bởi dấu phẩy)</Text>
-                <TextInput
-                  style={[styles.formInput, styles.formTextArea]}
-                  placeholder="VD: Giao miễn phí, Chất lượng cao, Ưu đãi đặc biệt"
-                  value={formData.features}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, features: text })
-                  }
-                  multiline
-                  numberOfLines={2}
-                />
-              </View>
             </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <Pressable
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.cancelButtonText}>Hủy</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalButton, styles.submitButton]}
-                onPress={handleSubmit}
-              >
-                <Text style={styles.submitButtonText}>
-                  {selectedPackage ? "Cập nhật" : "Tạo mới"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
 }
 
+/* ================= STYLE ================= */
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: AppTheme.colors.background,
+  container: { flex: 1, backgroundColor: "#F5F6FA" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+
+  header: { padding: 20, paddingTop: 40, paddingBottom: 20 },
+  headerTitle: { fontSize: 22, fontWeight: "700", color: "#FFF" },
+
+  filterSection: {
+      backgroundColor: '#FFF',
+      paddingBottom: 12,
+      borderBottomLeftRadius: 20,
+      borderBottomRightRadius: 20,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 10,
+      elevation: 3,
+      zIndex: 10,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#FFF",
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
-  },
-  searchContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  searchBox: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-    ...AppTheme.shadow.sm,
-  },
+
+  searchContainer: { flexDirection: "row", padding: 16, gap: 8, alignItems: 'center' },
   searchInput: {
     flex: 1,
-    fontSize: 15,
-    color: AppTheme.colors.textPrimary,
+    backgroundColor: "#F5F6FA",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 44,
   },
+
   addButton: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     backgroundColor: AppTheme.colors.primary,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
-    ...AppTheme.shadow.md,
   },
-  filterContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
+
+  tabContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      gap: 12,
   },
-  filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#FFF",
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: AppTheme.colors.divider,
+  tabItem: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 20,
+      backgroundColor: '#F0F0F0',
   },
-  filterChipActive: {
-    backgroundColor: AppTheme.colors.primary,
-    borderColor: AppTheme.colors.primary,
+  tabItemActive: {
+      backgroundColor: AppTheme.colors.primary,
   },
-  filterChipText: {
-    fontSize: 14,
-    color: AppTheme.colors.textSecondary,
-    fontWeight: "500",
+  tabText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: '#666',
   },
-  filterChipTextActive: {
-    color: "#FFF",
+  tabTextActive: {
+      color: '#FFF',
+      fontWeight: '600'
   },
-  packageList: {
-    flex: 1,
-    paddingHorizontal: 20,
+
+  listContent: { padding: 16 },
+  
+  // CARD STYLES
+  card: {
+      backgroundColor: '#FFF',
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 16,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
   },
-  packageCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    ...AppTheme.shadow.md,
+  cardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 8,
   },
-  packageHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 8,
+  cardCategory: {
+      fontSize: 12,
+      color: '#888',
+      marginBottom: 4,
+      textTransform: 'uppercase',
   },
-  packageTitle: {
-    flex: 1,
-    gap: 8,
-  },
-  packageName: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: AppTheme.colors.textPrimary,
+  cardTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#333',
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: "flex-start",
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: "600",
+      fontSize: 10,
+      fontWeight: '700',
+      textTransform: 'uppercase',
   },
-  packageActions: {
-    flexDirection: "row",
-    gap: 8,
+  cardBody: {
+      marginBottom: 12,
   },
-  actionButton: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-    backgroundColor: AppTheme.colors.backgroundSecondary,
+  cardPrice: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: AppTheme.colors.primary,
   },
-  packageDescription: {
-    fontSize: 14,
-    color: AppTheme.colors.textSecondary,
-    marginBottom: 12,
-    lineHeight: 20,
+  cardDuration: {
+      fontSize: 14,
+      fontWeight: '400',
+      color: '#666',
   },
-  packageStats: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
-    marginBottom: 12,
+  cardDescription: {
+      fontSize: 14,
+      color: '#555',
+      marginTop: 4,
+      lineHeight: 20,
   },
-  packageStat: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
+  cardFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      borderTopWidth: 1,
+      borderTopColor: '#F0F0F0',
+      paddingTop: 12,
   },
-  packageStatText: {
-    fontSize: 13,
-    color: AppTheme.colors.textSecondary,
-    fontWeight: "500",
+  statItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
   },
-  featuresContainer: {
-    borderTopWidth: 1,
-    borderTopColor: AppTheme.colors.divider,
-    paddingTop: 12,
-    gap: 6,
-  },
-  featureItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  featureText: {
-    fontSize: 13,
-    color: AppTheme.colors.textSecondary,
-  },
-  moreFeatures: {
-    fontSize: 12,
-    color: AppTheme.colors.primary,
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: AppTheme.colors.textLight,
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  emptyButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: AppTheme.colors.primary,
-    borderRadius: 12,
-  },
-  emptyButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFF",
-  },
+  statText: { fontSize: 12, color: '#666' },
+  dateText: { fontSize: 12, color: '#999' },
+
+  emptyState: { alignItems: "center", padding: 40 },
+
+  // MODAL STYLES (Keep original largely)
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -772,77 +617,44 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: "#FFF",
+    padding: 20,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "90%",
   },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: AppTheme.colors.divider,
-  },
   modalTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: AppTheme.colors.textPrimary,
+    marginBottom: 20,
+    textAlign: 'center'
   },
-  modalBody: {
-    padding: 20,
-  },
-  formGroup: {
-    marginBottom: 16,
-  },
-  formLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: AppTheme.colors.textPrimary,
-    marginBottom: 8,
-  },
-  formInput: {
-    backgroundColor: AppTheme.colors.backgroundSecondary,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  input: {
+    backgroundColor: "#F5F6FA",
     borderRadius: 12,
-    fontSize: 15,
-    color: AppTheme.colors.textPrimary,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0'
   },
-  formTextArea: {
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
-  formRow: {
-    flexDirection: "row",
-  },
-  modalFooter: {
-    flexDirection: "row",
-    padding: 20,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: AppTheme.colors.divider,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 14,
+  pickerWrapper: {
+    backgroundColor: "#F5F6FA",
     borderRadius: 12,
-    alignItems: "center",
-  },
-  cancelButton: {
-    backgroundColor: AppTheme.colors.backgroundSecondary,
-  },
-  cancelButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: AppTheme.colors.textSecondary,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    justifyContent: "center",
   },
   submitButton: {
     backgroundColor: AppTheme.colors.primary,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 16,
+    shadowColor: AppTheme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
   },
-  submitButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFF",
-  },
+  submitText: { color: "#FFF", fontWeight: "700", fontSize: 16 },
 });
