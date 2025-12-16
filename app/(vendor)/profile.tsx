@@ -83,7 +83,6 @@ export default function VendorProfile() {
             <Image
               source={{
                 uri:
-                  user?.avatar ||
                   "https://ui-avatars.com/api/?name=" + user?.name,
               }}
               style={styles.avatar}

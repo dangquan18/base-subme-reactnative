@@ -53,10 +53,17 @@ export default function ProfileScreen() {
       setLoading(true);
       const [favoritesData, paymentsData] = await Promise.all([
         packageService.getFavorites().catch(() => []),
-        paymentService.getPaymentHistory().catch(() => []),
+        paymentService.getPaymentHistory().catch(() => ({ payments: [] })),
       ]);
       setFavorites(favoritesData);
-      setPayments(paymentsData);
+      // Backend trả về { payments: [...], limit, offset }
+      setPayments(paymentsData.payments || paymentsData.data || []);
+      
+      console.log('📊 Profile data loaded:', {
+        favorites: favoritesData.length,
+        payments: (paymentsData.payments || paymentsData.data || []).length,
+        paymentsData: paymentsData
+      });
     } catch (error) {
       console.error('Failed to load profile data:', error);
     } finally {
@@ -64,22 +71,40 @@ export default function ProfileScreen() {
     }
   };
 
+  // Tính các payment thành công
+  const successPayments = payments.filter(p => p.status === 'success');
+  const totalSpent = successPayments.reduce((sum, p) => {
+    const amount = typeof p.amount === 'string' ? parseFloat(p.amount) : p.amount;
+    return sum + (amount || 0);
+  }, 0);
+
   const handleSignOut = async () => {
-    Alert.alert(
-      'Đăng xuất',
-      'Bạn có chắc muốn đăng xuất?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Đăng xuất',
-          style: 'destructive',
-          onPress: async () => {
-            await signOut();
-            router.replace('/(auth)/welcome');
-          },
-        },
-      ]
-    );
+    const confirmed = Platform.OS === 'web' 
+      ? window.confirm('Bạn có chắc muốn đăng xuất?')
+      : await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            'Đăng xuất',
+            'Bạn có chắc muốn đăng xuất?',
+            [
+              { text: 'Hủy', style: 'cancel', onPress: () => resolve(false) },
+              {
+                text: 'Đăng xuất',
+                style: 'destructive',
+                onPress: () => resolve(true),
+              },
+            ]
+          );
+        });
+
+    if (confirmed) {
+      try {
+        await signOut();
+        router.replace('/(auth)/welcome');
+      } catch (error) {
+        console.error('Sign out error:', error);
+        alert('Đăng xuất thất bại. Vui lòng thử lại.');
+      }
+    }
   };
 
   const formatPrice = (price: number) => {
@@ -180,7 +205,6 @@ export default function ProfileScreen() {
             <Image
               source={{
                 uri:
-                  user?.avatar ||
                   "https://ui-avatars.com/api/?name=" + user?.name,
               }}
               style={styles.avatar}
@@ -209,13 +233,13 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{payments.length}</Text>
+            <Text style={styles.statValue}>{successPayments.length}</Text>
             <Text style={styles.statLabel}>Giao dịch</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statValue}>
-              {formatPrice(payments.reduce((sum, p) => sum + p.amount, 0))}
+              {formatPrice(totalSpent)}
             </Text>
             <Text style={styles.statLabel}>Tổng chi</Text>
           </View>
@@ -256,39 +280,46 @@ export default function ProfileScreen() {
         )}
 
         {/* Payment History */}
-        {payments.length > 0 && (
+        {successPayments.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Lịch sử giao dịch</Text>
             </View>
             <View style={styles.menuCard}>
-              {payments.slice(0, 5).map((payment, index) => (
-                <View key={payment.id}>
-                  <Pressable style={styles.paymentItem}>
-                    <View style={styles.paymentLeft}>
-                      <View style={[styles.paymentIcon, { backgroundColor: payment.status === 'success' ? '#E8F5E9' : '#FFEBEE' }]}>
-                        <Ionicons
-                          name={payment.status === 'success' ? 'checkmark-circle' : 'close-circle'}
-                          size={20}
-                          color={payment.status === 'success' ? '#4CAF50' : '#F44336'}
-                        />
+              {successPayments.slice(0, 5).map((payment, index) => {
+                const paymentDate = (payment.created_at || payment.createdAt)
+                  ? new Date(payment.created_at || payment.createdAt).toLocaleDateString('vi-VN')
+                  : 'Không rõ';
+                const paymentName = payment.subscription?.plan?.name 
+                  || payment.subscription?.package?.name 
+                  || `Giao dịch #${payment.id}`;
+                
+                return (
+                  <View key={payment.id}>
+                    <Pressable style={styles.paymentItem}>
+                      <View style={styles.paymentLeft}>
+                        <View style={[styles.paymentIcon, { backgroundColor: '#E8F5E9' }]}>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color="#4CAF50"
+                          />
+                        </View>
+                        <View>
+                          <Text style={styles.paymentTitle}>{paymentName}</Text>
+                          <Text style={styles.paymentDate}>{paymentDate}</Text>
+                        </View>
                       </View>
-                      <View>
-                        <Text style={styles.paymentTitle}>{payment.subscription?.package.name || 'Thanh toán'}</Text>
-                        <Text style={styles.paymentDate}>
-                          {new Date(payment.created_at).toLocaleDateString('vi-VN')}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.paymentAmount, { color: payment.status === 'success' ? '#4CAF50' : '#F44336' }]}>
-                      {payment.status === 'success' ? '-' : ''}{formatPrice(payment.amount)}
-                    </Text>
-                  </Pressable>
-                  {index < Math.min(payments.length, 5) - 1 && (
-                    <View style={styles.menuDivider} />
-                  )}
-                </View>
-              ))}
+                      <Text style={[styles.paymentAmount, { color: '#4CAF50' }]}>
+                        -{formatPrice(typeof payment.amount === 'string' ? parseFloat(payment.amount) : payment.amount)}
+                      </Text>
+                    </Pressable>
+                    {index < successPayments.slice(0, 5).length - 1 && (
+                      <View style={styles.menuDivider} />
+                    )}
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}

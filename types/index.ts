@@ -95,11 +95,12 @@ export interface PaymentMethod {
 export interface Payment {
   id: number;
   subscription_id: number;
-  amount: number;
+  amount: number | string;
   method: PaymentMethodType;
   status: PaymentStatus;
-  transaction_id: string;
-  createdAt: string;
+  transaction_id?: string;
+  created_at: string;
+  createdAt?: string;
   subscription?: Subscription;
 }
 
@@ -127,7 +128,8 @@ export interface Notification {
   title: string;
   message: string;
   is_read: boolean;
-  createdAt: string;
+  created_at: string;
+  createdAt?: string;
 }
 
 // Review Types

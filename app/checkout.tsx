@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -107,6 +108,54 @@ export default function CheckoutScreen() {
         "Lỗi thanh toán",
         error.response?.data?.message || error.message || "Không thể xử lý thanh toán"
       );
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleTestPayment = async () => {
+    if (!packageData) return;
+
+    const confirmed = confirm("Bạn muốn test thanh toán thành công ngay?");
+    if (!confirmed) return;
+
+    try {
+      setProcessing(true);
+
+      // Step 1: Create subscription
+      const subscriptionResult = await subscriptionService.createSubscription({
+        plan_id: packageData.id,
+        payment_method: "VNPay",
+        auto_renew: autoRenew,
+      });
+
+      if (!subscriptionResult.success) {
+        throw new Error(subscriptionResult.message);
+      }
+
+      // Step 2: Create test payment (marks as success in DB)
+      const paymentResult = await paymentService.testPayment({
+        subscription_id: subscriptionResult.subscription.id,
+        amount: Number(packageData.price),
+      });
+
+      if (!paymentResult.success) {
+        throw new Error("Không thể tạo test payment");
+      }
+
+      // Navigate to success screen
+      router.replace({
+        pathname: "/payment-success",
+        params: {
+          status: "success",
+          subscriptionId: subscriptionResult.subscription.id,
+          amount: packageData.price.toString(),
+          packageName: packageData.name,
+        },
+      });
+    } catch (error: any) {
+      console.error("Test payment error:", error);
+      alert(error.response?.data?.message || error.message || "Không thể tạo test payment");
     } finally {
       setProcessing(false);
     }
@@ -226,6 +275,16 @@ export default function CheckoutScreen() {
           ) : (
             <Text style={styles.payButtonText}>Xác nhận thanh toán</Text>
           )}
+        </Pressable>
+        
+        {/* Test Payment Button */}
+        <Pressable 
+          style={[styles.testButton, processing && styles.testButtonDisabled]} 
+          onPress={handleTestPayment}
+          disabled={processing}
+        >
+          <Ionicons name="flash" size={16} color="#FF9800" />
+          <Text style={styles.testButtonText}>Test thanh toán</Text>
         </Pressable>
       </View>
     </View>
@@ -424,49 +483,74 @@ const styles = StyleSheet.create({
     backgroundColor: "#E0E0E0",
     marginVertical: 8,
   },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  totalPrice: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#667eea",
-  },
   footer: {
-    padding: 20,
-    paddingBottom: 32,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#E0E0E0",
+    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   footerPrice: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 16,
+    alignItems: "center",
+    marginBottom: 12,
   },
   footerPriceLabel: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#666",
   },
   footerPriceValue: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
+    fontWeight: "700",
+    color: "#667eea",
   },
   payButton: {
     backgroundColor: "#667eea",
-    paddingVertical: 16,
+    padding: 16,
     borderRadius: 12,
     alignItems: "center",
+    marginBottom: 8,
   },
   payButtonDisabled: {
     opacity: 0.5,
   },
   payButtonText: {
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
-    color: "#FFFFFF",
+  },
+  testButton: {
+    backgroundColor: "#FFF3E0",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#FF9800",
+  },
+  testButtonDisabled: {
+    opacity: 0.5,
+  },
+  testButtonText: {
+    color: "#FF9800",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });

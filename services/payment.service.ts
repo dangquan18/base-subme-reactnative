@@ -8,6 +8,11 @@ interface ProcessPaymentRequest {
   return_url: string;
 }
 
+interface TestPaymentRequest {
+  subscription_id: number;
+  amount: number;
+}
+
 interface PaymentHistoryParams {
   page?: number;
   limit?: number;
@@ -50,6 +55,17 @@ export const paymentService = {
       return response;
     } catch (error) {
       console.error("Get payment by ID error:", error);
+      throw error;
+    }
+  },
+
+  // Test payment - create successful payment without external gateway
+  async testPayment(data: TestPaymentRequest): Promise<{ success: boolean; payment: Payment }> {
+    try {
+      const response = await apiClient.post<{ success: boolean; payment: Payment }>("/payments/test", data);
+      return response;
+    } catch (error) {
+      console.error("Test payment error:", error);
       throw error;
     }
   },

@@ -162,7 +162,7 @@ export default function PaymentSuccessScreen() {
       <View style={styles.footer}>
         <Pressable
           style={styles.primaryButton}
-          onPress={() => router.replace("/(tabs)/explore")}
+          onPress={() => router.replace("/(tabs)/subscriptions")}
         >
           <Text style={styles.primaryButtonText}>Xem gói của tôi</Text>
         </Pressable>

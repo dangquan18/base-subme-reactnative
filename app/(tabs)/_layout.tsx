@@ -77,7 +77,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="notifications-outline" size={size} color={color} />
           ),
-          tabBarBadge: 3,
         }}
       />
       <Tabs.Screen

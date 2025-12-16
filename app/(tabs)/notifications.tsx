@@ -20,6 +20,7 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   useEffect(() => {
     loadNotifications();
@@ -28,8 +29,8 @@ export default function NotificationsScreen() {
   const loadNotifications = async () => {
     try {
       setLoading(true);
-      const data = await notificationService.getNotifications();
-      setNotifications(data);
+      const response = await notificationService.getNotifications();
+      setNotifications(response.data || []);
     } catch (error: any) {
       console.error('Failed to load notifications:', error);
     } finally {
@@ -85,7 +86,7 @@ export default function NotificationsScreen() {
     return `${days} ngày trước`;
   };
 
-  const markAsRead = async (id: string) => {
+  const markAsRead = async (id: number) => {
     try {
       await notificationService.markAsRead(id);
       setNotifications((prev) =>
@@ -106,26 +107,30 @@ export default function NotificationsScreen() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    Alert.alert(
-      'Xóa thông báo',
-      'Bạn có chắc muốn xóa thông báo này?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await notificationService.deleteNotification(id);
-              setNotifications((prev) => prev.filter((n) => n.id !== id));
-            } catch (error: any) {
-              Alert.alert('Lỗi', error.response?.data?.message || 'Không thể xóa thông báo');
-            }
-          },
-        },
-      ]
-    );
+  const handleDelete = async (id: number) => {
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmId) return;
+    
+    try {
+      console.log('🔄 Deleting notification:', deleteConfirmId);
+      await notificationService.deleteNotification(deleteConfirmId);
+      
+      // Reload lại danh sách sau khi xóa
+      await loadNotifications();
+      console.log('✅ Notification deleted and list refreshed');
+    } catch (error: any) {
+      console.error('❌ Delete error:', error);
+      Alert.alert('Lỗi', 'Không thể xóa thông báo');
+    } finally {
+      setDeleteConfirmId(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirmId(null);
   };
 
   if (loading) {
@@ -239,6 +244,29 @@ export default function NotificationsScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <Ionicons name="trash-outline" size={48} color="#F44336" />
+            </View>
+            <Text style={styles.modalTitle}>Xóa thông báo</Text>
+            <Text style={styles.modalMessage}>
+              Bạn có chắc muốn xóa thông báo này?
+            </Text>
+            <View style={styles.modalButtons}>
+              <Pressable style={styles.modalCancelButton} onPress={cancelDelete}>
+                <Text style={styles.modalCancelText}>Hủy</Text>
+              </Pressable>
+              <Pressable style={styles.modalDeleteButton} onPress={confirmDelete}>
+                <Text style={styles.modalDeleteText}>Xóa</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -343,6 +371,77 @@ const styles = StyleSheet.create({
   },
   centerContent: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 100,
+  },
+  emptyText: {
+    fontSize: 18,
+    color: '#999',
+    marginTop: 16,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 100,
+  },
+  emptyStateText: {
+    fontSize: AppTheme.fontSize.md,
+    color: AppTheme.colors.textLight,
+    marginTop: 16,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '80%',
+    maxWidth: 400,
+    alignItems: 'center',
+    ...AppTheme.shadow.lg,
+  },
+  modalIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFEBEE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: AppTheme.colors.textPrimary,
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: AppTheme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    justifyContent:"center"
+  },
+  modalCancelButton: {
     justifyContent: 'center',
     alignItems: 'center',
   },
