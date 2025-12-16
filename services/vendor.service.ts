@@ -1,27 +1,76 @@
 import { apiClient } from "./api";
+import { Package, Review } from "@/types";
 
 interface VendorStats {
-  totalRevenue: number;
-  newOrders: number;
-  activePackages: number;
-  averageRating: number;
-}
-
-interface VendorPackage {
-  id: string;
-  name: string;
-  price: number;
-  status: "active" | "inactive";
-  subscribers: number;
+  total_revenue: number;
+  total_packages: number;
+  total_subscribers: number;
+  active_subscriptions: number;
 }
 
 interface VendorOrder {
-  id: string;
-  customerName: string;
-  packageName: string;
-  amount: number;
-  status: "pending" | "confirmed" | "delivered" | "cancelled";
-  createdAt: string;
+  id: number;
+  status: string;
+  start_date: string;
+  end_date: string;
+  plan: {
+    id: number;
+    name: string;
+    price: number;
+  };
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+}
+
+interface VendorOrdersParams {
+  status?: "active" | "expired" | "cancelled";
+  page?: number;
+  limit?: number;
+}
+
+interface VendorOrdersResponse {
+  data: VendorOrder[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+interface VendorAnalytics {
+  daily_stats: Array<{
+    date: string;
+    subscriptions: number;
+    revenue: number;
+  }>;
+  total_revenue: number;
+  total_subscriptions: number;
+}
+
+interface VendorReviewsParams {
+  plan_id?: number;
+  page?: number;
+  limit?: number;
+}
+
+interface VendorReviewsResponse {
+  data: Review[];
+  average_rating: number;
+  total: number;
+  page: number;
+  limit: number;
+}
+
+interface CreatePackageRequest {
+  name: string;
+  description: string;
+  price: number;
+  duration_value: number;
+  duration_unit: string;
+  category_id: number;
+  features: string;
+  image?: string;
 }
 
 export const vendorService = {
@@ -37,9 +86,9 @@ export const vendorService = {
   },
 
   // Get vendor packages
-  async getPackages(): Promise<VendorPackage[]> {
+  async getPackages(): Promise<Package[]> {
     try {
-      const response = await apiClient.get<VendorPackage[]>("/vendor/packages");
+      const response = await apiClient.get<Package[]>("/vendor/packages");
       return response;
     } catch (error) {
       console.error("Get vendor packages error:", error);
@@ -48,9 +97,9 @@ export const vendorService = {
   },
 
   // Create package
-  async createPackage(data: Partial<VendorPackage>): Promise<VendorPackage> {
+  async createPackage(data: CreatePackageRequest): Promise<{ success: boolean; package: Package }> {
     try {
-      const response = await apiClient.post<VendorPackage>(
+      const response = await apiClient.post<{ success: boolean; package: Package }>(
         "/vendor/packages",
         data
       );
@@ -62,12 +111,9 @@ export const vendorService = {
   },
 
   // Update package
-  async updatePackage(
-    id: string,
-    data: Partial<VendorPackage>
-  ): Promise<VendorPackage> {
+  async updatePackage(id: number, data: Partial<CreatePackageRequest>): Promise<{ success: boolean; package: Package }> {
     try {
-      const response = await apiClient.patch<VendorPackage>(
+      const response = await apiClient.patch<{ success: boolean; package: Package }>(
         `/vendor/packages/${id}`,
         data
       );
@@ -79,7 +125,7 @@ export const vendorService = {
   },
 
   // Delete package
-  async deletePackage(id: string): Promise<void> {
+  async deletePackage(id: number): Promise<void> {
     try {
       await apiClient.delete(`/vendor/packages/${id}`);
     } catch (error) {
@@ -89,9 +135,9 @@ export const vendorService = {
   },
 
   // Get vendor orders
-  async getOrders(): Promise<VendorOrder[]> {
+  async getOrders(params?: VendorOrdersParams): Promise<VendorOrdersResponse> {
     try {
-      const response = await apiClient.get<VendorOrder[]>("/vendor/orders");
+      const response = await apiClient.get<VendorOrdersResponse>("/vendor/orders", { params });
       return response;
     } catch (error) {
       console.error("Get vendor orders error:", error);
@@ -99,19 +145,25 @@ export const vendorService = {
     }
   },
 
-  // Update order status
-  async updateOrderStatus(
-    id: string,
-    status: VendorOrder["status"]
-  ): Promise<VendorOrder> {
+  // Get vendor analytics
+  async getAnalytics(start_date?: string, end_date?: string): Promise<VendorAnalytics> {
     try {
-      const response = await apiClient.patch<VendorOrder>(
-        `/vendor/orders/${id}`,
-        { status }
-      );
+      const params = { start_date, end_date };
+      const response = await apiClient.get<VendorAnalytics>("/vendor/analytics", { params });
       return response;
     } catch (error) {
-      console.error("Update order status error:", error);
+      console.error("Get vendor analytics error:", error);
+      throw error;
+    }
+  },
+
+  // Get vendor reviews
+  async getReviews(params?: VendorReviewsParams): Promise<VendorReviewsResponse> {
+    try {
+      const response = await apiClient.get<VendorReviewsResponse>("/vendor/reviews", { params });
+      return response;
+    } catch (error) {
+      console.error("Get vendor reviews error:", error);
       throw error;
     }
   },

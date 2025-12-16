@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,96 +7,124 @@ import {
   Pressable,
   Image,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Subscription } from "@/types";
 import { AppTheme } from "@/constants/theme";
-
-// Mock data
-const MOCK_SUBSCRIPTIONS: Subscription[] = [
-  {
-    id: "1",
-    userId: "1",
-    packageId: "1",
-    package: {
-      id: "1",
-      name: "Cà phê sáng mỗi ngày",
-      description: "Bắt đầu ngày mới với ly cà phê ngon",
-      category: "coffee",
-      price: 299000,
-      frequency: "daily",
-      image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085",
-      providerId: "1",
-      providerName: "The Coffee House",
-      rating: 4.8,
-      subscriberCount: 1234,
-      features: [],
-      deliveryTime: "7:00 - 9:00",
-    },
-    status: "active",
-    startDate: new Date("2024-01-01"),
-    endDate: new Date("2024-01-31"),
-    nextPaymentDate: new Date("2024-01-31"),
-    paymentMethod: {
-      id: "1",
-      type: "momo",
-      name: "MoMo",
-      isDefault: true,
-    },
-    autoRenew: true,
-    deliverySchedule: [
-      { id: "1", date: new Date(), time: "08:00", status: "delivered" },
-      {
-        id: "2",
-        date: new Date(Date.now() + 86400000),
-        time: "08:00",
-        status: "pending",
-      },
-    ],
-  },
-  {
-    id: "2",
-    userId: "1",
-    packageId: "2",
-    package: {
-      id: "2",
-      name: "Cơm trưa văn phòng",
-      description: "Bữa trưa healthy",
-      category: "food",
-      price: 899000,
-      frequency: "weekly",
-      image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c",
-      providerId: "2",
-      providerName: "Healthy Box",
-      rating: 4.6,
-      subscriberCount: 856,
-      features: [],
-    },
-    status: "expiring_soon",
-    startDate: new Date("2024-01-01"),
-    endDate: new Date("2024-01-28"),
-    nextPaymentDate: new Date("2024-01-28"),
-    paymentMethod: {
-      id: "1",
-      type: "vnpay",
-      name: "VNPay",
-      isDefault: false,
-    },
-    autoRenew: false,
-  },
-];
+import { subscriptionService } from "@/services/subscription.service";
 
 export default function MySubscriptionsScreen() {
   const router = useRouter();
-  const [subscriptions] = useState(MOCK_SUBSCRIPTIONS);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadSubscriptions();
+  }, []);
+
+  const loadSubscriptions = async () => {
+    try {
+      setLoading(true);
+      // Only load active subscriptions
+      const data = await subscriptionService.getUserSubscriptions('active');
+      setSubscriptions(data);
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.response?.data?.message || 'Không thể tải danh sách đăng ký');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadSubscriptions();
+    setRefreshing(false);
+  };
+
+  const handlePauseSubscription = async (id: string) => {
+    Alert.alert(
+      'Tạm dừng đăng ký',
+      'Bạn có chắc muốn tạm dừng đăng ký này?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Tạm dừng',
+          onPress: async () => {
+            try {
+              await subscriptionService.pauseSubscription(id);
+              Alert.alert('Thành công', 'Đã tạm dừng đăng ký');
+              loadSubscriptions();
+            } catch (error: any) {
+              Alert.alert('Lỗi', error.response?.data?.message || 'Không thể tạm dừng đăng ký');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleResumeSubscription = async (id: string) => {
+    try {
+      await subscriptionService.resumeSubscription(id);
+      Alert.alert('Thành công', 'Đã tiếp tục đăng ký');
+      loadSubscriptions();
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.response?.data?.message || 'Không thể tiếp tục đăng ký');
+    }
+  };
+
+  const handleCancelSubscription = async (id: string) => {
+    Alert.alert(
+      'Hủy đăng ký',
+      'Bạn có chắc muốn hủy đăng ký này? Hành động này không thể hoàn tác.',
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Hủy đăng ký',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await subscriptionService.cancelSubscription(id);
+              Alert.alert('Thành công', 'Đã hủy đăng ký');
+              loadSubscriptions();
+            } catch (error: any) {
+              Alert.alert('Lỗi', error.response?.data?.message || 'Không thể hủy đăng ký');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRenewSubscription = async (id: string) => {
+    try {
+      await subscriptionService.renewSubscription(id);
+      Alert.alert('Thành công', 'Đã gia hạn đăng ký');
+      loadSubscriptions();
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.response?.data?.message || 'Không thể gia hạn đăng ký');
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#667eea" />
+      </View>
+    );
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
         return "#4CAF50";
-      case "expiring_soon":
+      case "expired":
         return "#FF9800";
       case "paused":
         return "#9E9E9E";
@@ -149,7 +177,13 @@ export default function MySubscriptionsScreen() {
         <Text style={styles.headerSubtitle}>Quản lý đăng ký của bạn</Text>
       </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
@@ -165,18 +199,36 @@ export default function MySubscriptionsScreen() {
           <View style={styles.statCard}>
             <Text style={[styles.statValue, { color: "#667eea" }]}>
               {formatPrice(
-                subscriptions.reduce((sum, s) => sum + s.package.price, 0)
+                subscriptions.reduce((sum, s) => sum + (s.plan?.price || 0), 0)
               )}
             </Text>
             <Text style={styles.statLabel}>Tháng này</Text>
           </View>
         </View>
 
+        {subscriptions.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="cube-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyText}>Chưa có đăng ký nào</Text>
+            <Text style={styles.emptySubtext}>Khám phá các gói dịch vụ mới</Text>
+            <Pressable 
+              style={styles.exploreButton}
+              onPress={() => router.push('/(tabs)/explore')}
+            >
+              <Text style={styles.exploreButtonText}>Khám phá</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
         {/* Subscriptions List */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Danh sách gói</Text>
 
-          {subscriptions.map((subscription) => (
+          {subscriptions.map((subscription) => {
+            // Skip subscriptions without plan data
+            if (!subscription.plan) return null;
+            
+            return (
             <Pressable
               key={subscription.id}
               style={styles.subscriptionCard}
@@ -184,16 +236,22 @@ export default function MySubscriptionsScreen() {
                 router.push(`/subscription/${subscription.id}` as any)
               }
             >
-              <Image
-                source={{ uri: subscription.package.image }}
-                style={styles.packageImage}
-                defaultSource={require("@/assets/images/partial-react-logo.png")}
-              />
+              {subscription.plan.image ? (
+                <Image
+                  source={{ uri: subscription.plan.image }}
+                  style={styles.packageImage}
+                  defaultSource={require("@/assets/images/partial-react-logo.png")}
+                />
+              ) : (
+                <View style={[styles.packageImage, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="image-outline" size={32} color="#ccc" />
+                </View>
+              )}
 
               <View style={styles.cardContent}>
                 <View style={styles.cardHeader}>
                   <Text style={styles.packageName} numberOfLines={1}>
-                    {subscription.package.name}
+                    {subscription.plan.name}
                   </Text>
                   <View
                     style={[
@@ -216,36 +274,57 @@ export default function MySubscriptionsScreen() {
                 </View>
 
                 <Text style={styles.providerName}>
-                  {subscription.package.providerName}
+                  {subscription.plan.vendor?.name || 'N/A'}
                 </Text>
 
                 <View style={styles.cardInfo}>
                   <View style={styles.infoItem}>
                     <Ionicons name="calendar-outline" size={16} color="#666" />
                     <Text style={styles.infoText}>
-                      Còn {getDaysRemaining(subscription.endDate)} ngày
+                      {new Date(subscription.end_date).toLocaleDateString('vi-VN')}
                     </Text>
                   </View>
                   <View style={styles.infoItem}>
                     <Ionicons name="card-outline" size={16} color="#666" />
                     <Text style={styles.infoText}>
-                      {formatPrice(subscription.package.price)}/tháng
+                      {formatPrice(subscription.plan.price || 0)}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.cardActions}>
-                  {subscription.status === "expiring_soon" && (
-                    <Pressable style={styles.renewButton}>
+                  {subscription.status === "expired" && (
+                    <Pressable 
+                      style={styles.renewButton}
+                      onPress={() => handleRenewSubscription(subscription.id)}
+                    >
                       <Text style={styles.renewButtonText}>Gia hạn</Text>
                     </Pressable>
                   )}
                   {subscription.status === "active" && (
-                    <Pressable style={styles.pauseButton}>
+                    <Pressable 
+                      style={styles.pauseButton}
+                      onPress={() => handlePauseSubscription(subscription.id)}
+                    >
                       <Ionicons name="pause-outline" size={16} color="#666" />
                       <Text style={styles.pauseButtonText}>Tạm dừng</Text>
                     </Pressable>
                   )}
+                  {subscription.status === "paused" && (
+                    <Pressable 
+                      style={styles.resumeButton}
+                      onPress={() => handleResumeSubscription(subscription.id)}
+                    >
+                      <Ionicons name="play-outline" size={16} color="#4CAF50" />
+                      <Text style={styles.resumeButtonText}>Tiếp tục</Text>
+                    </Pressable>
+                  )}
+                  <Pressable 
+                    style={styles.cancelButton}
+                    onPress={() => handleCancelSubscription(subscription.id)}
+                  >
+                    <Text style={styles.cancelButtonText}>Hủy</Text>
+                  </Pressable>
                   <Pressable style={styles.detailButton}>
                     <Text style={styles.detailButtonText}>Chi tiết</Text>
                     <Ionicons
@@ -257,7 +336,8 @@ export default function MySubscriptionsScreen() {
                 </View>
               </View>
             </Pressable>
-          ))}
+            );
+          })}
         </View>
 
         {/* Add More */}
@@ -268,6 +348,8 @@ export default function MySubscriptionsScreen() {
           <Ionicons name="add-circle-outline" size={24} color="#667eea" />
           <Text style={styles.addButtonText}>Khám phá thêm gói</Text>
         </Pressable>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -421,6 +503,31 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#666",
   },
+  resumeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#E8F5E9",
+  },
+  resumeButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4CAF50",
+  },
+  cancelButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#FFEBEE",
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#F44336",
+  },
   detailButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -435,6 +542,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#667eea",
+  },
+  centerContent: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 8,
+  },
+  exploreButton: {
+    marginTop: 24,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    backgroundColor: "#667eea",
+    borderRadius: 12,
+  },
+  exploreButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   addButton: {
     flexDirection: "row",

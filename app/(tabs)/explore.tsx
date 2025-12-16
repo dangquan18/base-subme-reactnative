@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,38 +8,88 @@ import {
   Pressable,
   Image,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { CATEGORIES } from "@/constants/categories";
-import { MOCK_PACKAGES, searchPackages } from "@/constants/mock-packages";
-import { PackageCategory } from "@/types";
+import { packageService } from "@/services/package.service";
+import { Package, Category } from "@/types";
 import { AppTheme } from "@/constants/theme";
 
 export default function ExploreScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<
-    PackageCategory | "all"
-  >("all");
+  const [selectedCategory, setSelectedCategory] = useState<number | "all">("all");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [filteredPackages, setFilteredPackages] = useState<Package[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Filter packages based on search and category
-  const filteredPackages = useMemo(() => {
-    let packages = MOCK_PACKAGES;
+  useEffect(() => {
+    loadData();
+  }, []);
 
-    // Filter by search query
-    if (searchQuery.trim()) {
-      packages = searchPackages(searchQuery);
+  useEffect(() => {
+    filterPackages();
+  }, [searchQuery, selectedCategory, packages]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [categoriesData, packagesData] = await Promise.all([
+        packageService.getCategories(),
+        packageService.getPackages({ limit: 50 }),
+      ]);
+      setCategories(categoriesData || []);
+      setPackages(packagesData?.packages || []);
+      setFilteredPackages(packagesData?.packages || []);
+    } catch (error: any) {
+      console.error("Error loading explore data:", error);
+      setError(error.message || "Không thể tải dữ liệu");
+      setCategories([]);
+      setPackages([]);
+      setFilteredPackages([]);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    // Filter by category
-    if (selectedCategory !== "all") {
-      packages = packages.filter((pkg) => pkg.category === selectedCategory);
+  const filterPackages = async () => {
+    try {
+      // Search by keyword
+      if (searchQuery.trim()) {
+        setSearching(true);
+        const result = await packageService.searchPackages({ 
+          keyword: searchQuery,
+          limit: 50 
+        });
+        let filtered = result.packages;
+
+        // Filter by category if selected
+        if (selectedCategory !== "all") {
+          filtered = filtered.filter((pkg) => pkg.category.id === selectedCategory);
+        }
+        
+        setFilteredPackages(filtered);
+        setSearching(false);
+      } else {
+        // Filter by category only
+        if (selectedCategory !== "all") {
+          const filtered = packages.filter((pkg) => pkg.category.id === selectedCategory);
+          setFilteredPackages(filtered);
+        } else {
+          setFilteredPackages(packages);
+        }
+      }
+    } catch (error) {
+      console.error("Error filtering packages:", error);
+      setSearching(false);
     }
-
-    return packages;
-  }, [searchQuery, selectedCategory]);
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -48,18 +98,18 @@ export default function ExploreScreen() {
     }).format(price);
   };
 
-  const getFrequencyText = (frequency: string) => {
-    switch (frequency) {
-      case "daily":
-        return "/ngày";
-      case "weekly":
-        return "/tuần";
-      case "monthly":
-        return "/tháng";
-      default:
-        return "";
-    }
+  const getDurationText = (value: number, unit: string) => {
+    return `/${value} ${unit}`;
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={AppTheme.colors.primary} />
+        <Text style={{ marginTop: 16, color: AppTheme.colors.textSecondary }}>Đang tải...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -118,12 +168,12 @@ export default function ExploreScreen() {
                   selectedCategory === "all" && styles.filterChipTextActive,
                 ]}
               >
-                Tất cả ({MOCK_PACKAGES.length})
+                Tất cả ({packages?.length || 0})
               </Text>
             </Pressable>
-            {CATEGORIES.map((category) => {
-              const count = MOCK_PACKAGES.filter(
-                (pkg) => pkg.category === category.id
+            {categories?.map((category) => {
+              const count = packages?.filter(
+                (pkg) => pkg.category.id === category.id
               ).length;
               return (
                 <Pressable
@@ -132,11 +182,9 @@ export default function ExploreScreen() {
                     styles.filterChip,
                     selectedCategory === category.id && styles.filterChipActive,
                   ]}
-                  onPress={() =>
-                    setSelectedCategory(category.id as PackageCategory)
-                  }
+                  onPress={() => setSelectedCategory(category.id)}
                 >
-                  <Text style={styles.filterEmoji}>{category.emoji}</Text>
+                  <Text style={styles.filterEmoji}>{category.icon}</Text>
                   <Text
                     style={[
                       styles.filterChipText,
@@ -155,10 +203,16 @@ export default function ExploreScreen() {
         {/* Results */}
         <View style={styles.resultsSection}>
           <Text style={styles.resultsCount}>
-            {filteredPackages.length} gói dịch vụ
+            {filteredPackages?.length || 0} gói dịch vụ
           </Text>
 
-          {filteredPackages.length === 0 ? (
+          {searching && (
+            <View style={{ padding: 20, alignItems: "center" }}>
+              <ActivityIndicator size="small" color={AppTheme.colors.primary} />
+            </View>
+          )}
+
+          {!searching && filteredPackages?.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="search-outline" size={64} color="#ccc" />
               <Text style={styles.emptyText}>
@@ -169,27 +223,33 @@ export default function ExploreScreen() {
               </Text>
             </View>
           ) : (
-            filteredPackages.map((pkg) => (
+            filteredPackages?.map((pkg) => (
               <Pressable
                 key={pkg.id}
                 style={styles.packageCard}
                 onPress={() => router.push(`/package/${pkg.id}` as any)}
               >
-                <Image
-                  source={{ uri: pkg.image }}
-                  style={styles.packageImage}
-                  defaultSource={require("@/assets/images/partial-react-logo.png")}
-                />
+                {pkg.image ? (
+                  <Image
+                    source={{ uri: pkg.image }}
+                    style={styles.packageImage}
+                    defaultSource={require("@/assets/images/partial-react-logo.png")}
+                  />
+                ) : (
+                  <View style={[styles.packageImage, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Ionicons name="image-outline" size={48} color="#ccc" />
+                  </View>
+                )}
                 <View style={styles.packageContent}>
                   <View style={styles.packageHeader}>
                     <Text style={styles.packageName}>{pkg.name}</Text>
                     <View style={styles.ratingContainer}>
                       <Ionicons name="star" size={14} color="#FFC107" />
-                      <Text style={styles.ratingText}>{pkg.rating}</Text>
+                      <Text style={styles.ratingText}>{Number(pkg.average_rating || 0).toFixed(1)}</Text>
                     </View>
                   </View>
 
-                  <Text style={styles.packageProvider}>{pkg.providerName}</Text>
+                  <Text style={styles.packageProvider}>{pkg.vendor.name}</Text>
                   <Text style={styles.packageDescription} numberOfLines={2}>
                     {pkg.description}
                   </Text>
@@ -198,12 +258,12 @@ export default function ExploreScreen() {
                     <View>
                       <Text style={styles.packagePrice}>
                         {formatPrice(pkg.price)}
-                        <Text style={styles.packageFrequency}>
-                          {getFrequencyText(pkg.frequency)}
-                        </Text>
+                      </Text>
+                      <Text style={styles.packageFrequency}>
+                        {getDurationText(pkg.duration_value, pkg.duration_unit)}
                       </Text>
                       <Text style={styles.subscriberCount}>
-                        {pkg.subscriberCount}+ người đăng ký
+                        {pkg.subscriber_count}+ người đăng ký
                       </Text>
                     </View>
                     <Pressable style={styles.subscribeButton}>

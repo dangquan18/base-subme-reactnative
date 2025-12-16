@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
-import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   useAnimatedStyle,
@@ -9,16 +9,45 @@ import Animated, {
   withSequence,
   withDelay,
 } from "react-native-reanimated";
+import { paymentService } from "@/services/payment.service";
 
 export default function PaymentSuccessScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const [loading, setLoading] = useState(true);
+  const [paymentData, setPaymentData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const scale = useSharedValue(0);
   const checkScale = useSharedValue(0);
 
   useEffect(() => {
-    scale.value = withSpring(1, { damping: 10 });
-    checkScale.value = withDelay(300, withSpring(1, { damping: 12 }));
+    verifyPayment();
   }, []);
+
+  const verifyPayment = async () => {
+    try {
+      setLoading(true);
+      
+      // Check payment status from URL params
+      const status = params.status as string;
+      
+      if (status === 'success') {
+        // Payment successful
+        setPaymentData({ success: true });
+        
+        // Start success animation
+        scale.value = withSpring(1, { damping: 10 });
+        checkScale.value = withDelay(300, withSpring(1, { damping: 12 }));
+      } else {
+        setError('Thanh toán thất bại. Vui lòng thử lại.');
+      }
+    } catch (error: any) {
+      console.error('Failed to verify payment:', error);
+      setError(error.response?.data?.message || 'Không thể xác thực thanh toán');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const circleStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -27,6 +56,50 @@ export default function PaymentSuccessScreen() {
   const checkStyle = useAnimatedStyle(() => ({
     transform: [{ scale: checkScale.value }],
   }));
+
+  const formatPrice = (amount: number) => {
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+    }).format(amount);
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#667eea" />
+        <Text style={styles.loadingText}>Đang xác thực thanh toán...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <View style={styles.errorCircle}>
+            <Ionicons name="close" size={64} color="#FFFFFF" />
+          </View>
+          <Text style={styles.title}>Thanh toán thất bại</Text>
+          <Text style={styles.message}>{error}</Text>
+        </View>
+        <View style={styles.footer}>
+          <Pressable
+            style={styles.primaryButton}
+            onPress={() => router.replace('/(tabs)/subscriptions')}
+          >
+            <Text style={styles.primaryButtonText}>Thử lại</Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => router.replace('/(tabs)')}
+          >
+            <Text style={styles.secondaryButtonText}>Về trang chủ</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -47,16 +120,18 @@ export default function PaymentSuccessScreen() {
         <View style={styles.infoCards}>
           <View style={styles.infoCard}>
             <Ionicons name="calendar-outline" size={24} color="#667eea" />
-            <Text style={styles.infoLabel}>Ngày bắt đầu</Text>
+            <Text style={styles.infoLabel}>Ngày thanh toán</Text>
             <Text style={styles.infoValue}>
-              {new Date().toLocaleDateString("vi-VN")}
+              {paymentData ? new Date(paymentData.created_at).toLocaleDateString("vi-VN") : new Date().toLocaleDateString("vi-VN")}
             </Text>
           </View>
 
           <View style={styles.infoCard}>
             <Ionicons name="card-outline" size={24} color="#667eea" />
-            <Text style={styles.infoLabel}>Phương thức</Text>
-            <Text style={styles.infoValue}>MoMo</Text>
+            <Text style={styles.infoLabel}>Số tiền</Text>
+            <Text style={styles.infoValue}>
+              {paymentData ? formatPrice(paymentData.amount) : '0 đ'}
+            </Text>
           </View>
         </View>
 
@@ -65,13 +140,19 @@ export default function PaymentSuccessScreen() {
           <View style={styles.receiptRow}>
             <Text style={styles.receiptLabel}>Mã giao dịch</Text>
             <Text style={styles.receiptValue}>
-              #TXN{Date.now().toString().slice(-8)}
+              #{paymentData?.id || Date.now().toString().slice(-8)}
             </Text>
           </View>
           <View style={styles.receiptRow}>
-            <Text style={styles.receiptLabel}>Thời gian</Text>
+            <Text style={styles.receiptLabel}>Gói dịch vụ</Text>
             <Text style={styles.receiptValue}>
-              {new Date().toLocaleTimeString("vi-VN")}
+              {paymentData?.subscription?.package?.name || 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.receiptRow}>
+            <Text style={styles.receiptLabel}>Trạng thái</Text>
+            <Text style={[styles.receiptValue, { color: '#4CAF50' }]}>
+              {paymentData?.status === 'success' ? 'Thành công' : 'Đang xử lý'}
             </Text>
           </View>
         </View>
@@ -101,6 +182,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F44336',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
   },
   content: {
     flex: 1,

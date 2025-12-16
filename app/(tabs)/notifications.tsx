@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,54 +6,42 @@ import {
   ScrollView,
   Pressable,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Notification } from "@/types";
 import { AppTheme } from "@/constants/theme";
-
-// Mock data
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    userId: "1",
-    type: "delivery",
-    title: "Giao hàng sắp tới",
-    message: "Gói cà phê của bạn sẽ giao lúc 8h sáng nay",
-    read: false,
-    createdAt: new Date(Date.now() - 3600000),
-  },
-  {
-    id: "2",
-    userId: "1",
-    type: "payment",
-    title: "Sắp hết hạn",
-    message: "Còn 2 ngày nữa hết hạn – Gia hạn ngay để nhận ưu đãi",
-    read: false,
-    createdAt: new Date(Date.now() - 7200000),
-  },
-  {
-    id: "3",
-    userId: "1",
-    type: "promotion",
-    title: "Ưu đãi đặc biệt",
-    message: "Giảm 20% cho gói Gym Premium tháng này!",
-    read: false,
-    createdAt: new Date(Date.now() - 86400000),
-  },
-  {
-    id: "4",
-    userId: "1",
-    type: "system",
-    title: "Đánh giá dịch vụ",
-    message: "Hãy cho chúng tôi biết trải nghiệm của bạn với gói Cà phê",
-    read: true,
-    createdAt: new Date(Date.now() - 172800000),
-  },
-];
+import { notificationService } from "@/services/notification.service";
 
 export default function NotificationsScreen() {
-  const [notifications, setNotifications] = React.useState(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const loadNotifications = async () => {
+    try {
+      setLoading(true);
+      const data = await notificationService.getNotifications();
+      setNotifications(data);
+    } catch (error: any) {
+      console.error('Failed to load notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadNotifications();
+    setRefreshing(false);
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -97,17 +85,68 @@ export default function NotificationsScreen() {
     return `${days} ngày trước`;
   };
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
+    try {
+      await notificationService.markAsRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+      );
+    } catch (error) {
+      console.error('Failed to mark as read:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      Alert.alert('Thành công', 'Đã đánh dấu tất cả là đã đọc');
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.response?.data?.message || 'Không thể cập nhật');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    Alert.alert(
+      'Xóa thông báo',
+      'Bạn có chắc muốn xóa thông báo này?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await notificationService.deleteNotification(id);
+              setNotifications((prev) => prev.filter((n) => n.id !== id));
+            } catch (error: any) {
+              Alert.alert('Lỗi', error.response?.data?.message || 'Không thể xóa thông báo');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#667eea" />
+      </View>
+    );
+  }
+
+  const markAsRead_OLD = (id: string) => {
     setNotifications((prev) =>
       prev.map((notif) => (notif.id === id ? { ...notif, read: true } : notif))
     );
   };
 
-  const markAllAsRead = () => {
+  const markAllAsRead_OLD = () => {
     setNotifications((prev) => prev.map((notif) => ({ ...notif, read: true })));
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   return (
     <View style={styles.container}>
@@ -133,13 +172,26 @@ export default function NotificationsScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {notifications.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="notifications-off-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyText}>Chưa có thông báo</Text>
+          </View>
+        ) : (
+          <>
         {notifications.map((notification) => (
           <Pressable
             key={notification.id}
             style={[
               styles.notificationCard,
-              !notification.read && styles.notificationCardUnread,
+              !notification.is_read && styles.notificationCardUnread,
             ]}
             onPress={() => markAsRead(notification.id)}
           >
@@ -166,23 +218,25 @@ export default function NotificationsScreen() {
                 <Text style={styles.notificationTitle}>
                   {notification.title}
                 </Text>
-                {!notification.read && <View style={styles.unreadDot} />}
+                {!notification.is_read && <View style={styles.unreadDot} />}
               </View>
               <Text style={styles.notificationMessage}>
                 {notification.message}
               </Text>
               <Text style={styles.notificationTime}>
-                {formatTime(notification.createdAt)}
+                {formatTime(new Date(notification.created_at))}
               </Text>
             </View>
+
+            <Pressable 
+              style={styles.deleteButton}
+              onPress={() => handleDelete(notification.id)}
+            >
+              <Ionicons name="trash-outline" size={20} color="#F44336" />
+            </Pressable>
           </Pressable>
         ))}
-
-        {notifications.length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons name="notifications-off-outline" size={64} color="#CCC" />
-            <Text style={styles.emptyStateText}>Không có thông báo</Text>
-          </View>
+          </>
         )}
       </ScrollView>
     </View>
@@ -282,6 +336,25 @@ const styles = StyleSheet.create({
   notificationTime: {
     fontSize: AppTheme.fontSize.xs,
     color: AppTheme.colors.textLight,
+  },
+  deleteButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 100,
+  },
+  emptyText: {
+    fontSize: 18,
+    color: '#999',
+    marginTop: 16,
   },
   emptyState: {
     alignItems: "center",

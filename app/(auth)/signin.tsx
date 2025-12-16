@@ -28,18 +28,16 @@ export default function SignInScreen() {
     setLoading(true);
     try {
       const role = await signIn(email, password);
-
-      // Navigate based on role
+      
+      // Navigate immediately based on role
       if (role === "vendor") {
-        router.replace("/(vendor)" as any);
+        router.replace("/(vendor)");
       } else {
         router.replace("/(tabs)");
       }
-    } catch (error) {
-      Alert.alert(
-        "Lỗi",
-        "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin."
-      );
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.";
+      Alert.alert("Lỗi", message);
     } finally {
       setLoading(false);
     }
@@ -104,26 +102,6 @@ export default function SignInScreen() {
           <Text style={styles.signInButtonText}>
             {loading ? "Đang đăng nhập..." : "Đăng nhập"}
           </Text>
-        </Pressable>
-      </View>
-
-      {/* Divider */}
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>hoặc</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      {/* Social Login */}
-      <View style={styles.socialButtons}>
-        <Pressable style={styles.socialButton} onPress={signInWithGoogle}>
-          <Ionicons name="logo-google" size={24} color="#DB4437" />
-          <Text style={styles.socialButtonText}>Google</Text>
-        </Pressable>
-
-        <Pressable style={styles.socialButton} onPress={signInWithApple}>
-          <Ionicons name="logo-apple" size={24} color="#000" />
-          <Text style={styles.socialButtonText}>Apple</Text>
         </Pressable>
       </View>
 

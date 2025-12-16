@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,18 +8,50 @@ import {
   Image,
   Dimensions,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { CATEGORIES } from "@/constants/categories";
-import { FEATURED_PACKAGES } from "@/constants/mock-packages";
+import { packageService } from "@/services/package.service";
+import { Package, Category } from "@/types";
 import { AppTheme } from "@/constants/theme";
 
 const { width } = Dimensions.get("window");
 
 export default function HomeScreen() {
   const router = useRouter();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [featuredPackages, setFeaturedPackages] = useState<Package[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [categoriesData, featuredData] = await Promise.all([
+        packageService.getCategories(),
+        packageService.getFeaturedPackages(5),
+      ]);
+      setCategories(categoriesData);
+      setFeaturedPackages(featuredData);
+    } catch (error) {
+      console.error("Error loading home data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -28,22 +60,27 @@ export default function HomeScreen() {
     }).format(price);
   };
 
-  const getFrequencyText = (frequency: string) => {
-    switch (frequency) {
-      case "daily":
-        return "/ngày";
-      case "weekly":
-        return "/tuần";
-      case "monthly":
-        return "/tháng";
-      default:
-        return "";
-    }
+  const getDurationText = (value: number, unit: string) => {
+    return `/${value} ${unit}`;
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={AppTheme.colors.primary} />
+        <Text style={{ marginTop: 16, color: AppTheme.colors.textSecondary }}>Đang tải...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Hero Header with Gradient */}
         <LinearGradient
           colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
@@ -94,7 +131,7 @@ export default function HomeScreen() {
             >
               <Ionicons name="cube" size={28} color="#4CAF50" />
             </View>
-            <Text style={styles.statValue}>120+</Text>
+            <Text style={styles.statValue}>{featuredPackages.length}+</Text>
             <Text style={styles.statLabel}>Gói dịch vụ</Text>
           </View>
           <View style={styles.statCard}>
@@ -103,7 +140,9 @@ export default function HomeScreen() {
             >
               <Ionicons name="people" size={28} color="#2196F3" />
             </View>
-            <Text style={styles.statValue}>5K+</Text>
+            <Text style={styles.statValue}>
+              {featuredPackages.reduce((sum, pkg) => sum + pkg.subscriber_count, 0)}+
+            </Text>
             <Text style={styles.statLabel}>Người dùng</Text>
           </View>
           <View style={styles.statCard}>
@@ -112,7 +151,11 @@ export default function HomeScreen() {
             >
               <Ionicons name="star" size={28} color="#FFC107" />
             </View>
-            <Text style={styles.statValue}>4.8</Text>
+            <Text style={styles.statValue}>
+              {featuredPackages.length > 0 
+                ? (featuredPackages.reduce((sum, pkg) => sum + pkg.average_rating, 0) / featuredPackages.length).toFixed(1)
+                : "0"}
+            </Text>
             <Text style={styles.statLabel}>Đánh giá</Text>
           </View>
         </View>
@@ -181,17 +224,17 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoriesContainer}
           >
-            {CATEGORIES.map((category) => (
+            {categories.map((category) => (
               <Pressable
                 key={category.id}
                 style={styles.categoryCard}
                 onPress={() => router.push("/(tabs)/explore" as any)}
               >
                 <LinearGradient
-                  colors={[category.color + "20", category.color + "10"]}
+                  colors={["#667eea20", "#667eea10"]}
                   style={styles.categoryIcon}
                 >
-                  <Text style={styles.categoryEmoji}>{category.emoji}</Text>
+                  <Text style={styles.categoryEmoji}>{category.icon}</Text>
                 </LinearGradient>
                 <Text style={styles.categoryName}>{category.name}</Text>
               </Pressable>
@@ -211,20 +254,26 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          {FEATURED_PACKAGES.map((pkg) => (
+          {featuredPackages.map((pkg) => (
             <Pressable
               key={pkg.id}
               style={styles.packageCard}
               onPress={() => router.push(`/package/${pkg.id}` as any)}
             >
-              <Image
-                source={{ uri: pkg.image }}
-                style={styles.packageImage}
-                defaultSource={require("@/assets/images/partial-react-logo.png")}
-              />
+              {pkg.image ? (
+                <Image
+                  source={{ uri: pkg.image }}
+                  style={styles.featuredImage}
+                  defaultSource={require("@/assets/images/partial-react-logo.png")}
+                />
+              ) : (
+                <View style={[styles.featuredImage, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="image-outline" size={48} color="#ccc" />
+                </View>
+              )}
               <View style={styles.packageBadge}>
                 <Ionicons name="star" size={12} color="#FFF" />
-                <Text style={styles.packageBadgeText}>{pkg.rating}</Text>
+                <Text style={styles.packageBadgeText}>{Number(pkg.average_rating || 0).toFixed(1)}</Text>
               </View>
               <View style={styles.packageContent}>
                 <View style={styles.packageHeader}>
@@ -233,7 +282,7 @@ export default function HomeScreen() {
                   </Text>
                 </View>
 
-                <Text style={styles.packageProvider}>{pkg.providerName}</Text>
+                <Text style={styles.packageProvider}>{pkg.vendor.name}</Text>
                 <Text style={styles.packageDescription} numberOfLines={2}>
                   {pkg.description}
                 </Text>
@@ -244,7 +293,7 @@ export default function HomeScreen() {
                       {formatPrice(pkg.price)}
                     </Text>
                     <Text style={styles.packageFrequency}>
-                      {getFrequencyText(pkg.frequency)}
+                      {getDurationText(pkg.duration_value, pkg.duration_unit)}
                     </Text>
                   </View>
                   <Pressable style={styles.subscribeButton}>
@@ -269,7 +318,7 @@ export default function HomeScreen() {
                     color={AppTheme.colors.textLight}
                   />
                   <Text style={styles.subscriberCount}>
-                    {pkg.subscriberCount}+ người đăng ký
+                    {pkg.subscriber_count}+ người đăng ký
                   </Text>
                 </View>
               </View>

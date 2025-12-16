@@ -14,16 +14,18 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const { signUp, signInWithGoogle, signInWithApple } = useAuth();
+  const { signUp } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
     if (!name || !email || !password || !confirmPassword) {
-      Alert.alert("Lỗi", "Vui lòng nhập đầy đủ thông tin");
+      Alert.alert("Lỗi", "Vui lòng nhập đầy đủ thông tin bắt buộc");
       return;
     }
 
@@ -32,12 +34,20 @@ export default function SignUpScreen() {
       return;
     }
 
+    if (password.length < 6) {
+      Alert.alert("Lỗi", "Mật khẩu phải có ít nhất 6 ký tự");
+      return;
+    }
+
     setLoading(true);
     try {
-      await signUp(email, password, name);
-      router.replace("/(auth)/interests");
-    } catch (error) {
-      Alert.alert("Lỗi", "Đăng ký thất bại");
+      await signUp(email, password, name, phone || undefined, address || undefined);
+      Alert.alert("Thành công", "Đăng ký tài khoản thành công! Vui lòng đăng nhập.", [
+        { text: "OK", onPress: () => router.replace("/(auth)/signin") }
+      ]);
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.";
+      Alert.alert("Lỗi", message);
     } finally {
       setLoading(false);
     }
@@ -121,6 +131,37 @@ export default function SignUpScreen() {
           />
         </View>
 
+        <View style={styles.inputContainer}>
+          <Ionicons
+            name="call-outline"
+            size={20}
+            color="#666"
+            style={styles.inputIcon}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Số điện thoại (tùy chọn)"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+          />
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Ionicons
+            name="location-outline"
+            size={20}
+            color="#666"
+            style={styles.inputIcon}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Địa chỉ (tùy chọn)"
+            value={address}
+            onChangeText={setAddress}
+          />
+        </View>
+
         <Pressable
           style={[styles.signUpButton, loading && styles.buttonDisabled]}
           onPress={handleSignUp}
@@ -129,26 +170,6 @@ export default function SignUpScreen() {
           <Text style={styles.signUpButtonText}>
             {loading ? "Đang tạo tài khoản..." : "Đăng ký"}
           </Text>
-        </Pressable>
-      </View>
-
-      {/* Divider */}
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>hoặc</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      {/* Social Login */}
-      <View style={styles.socialButtons}>
-        <Pressable style={styles.socialButton} onPress={signInWithGoogle}>
-          <Ionicons name="logo-google" size={24} color="#DB4437" />
-          <Text style={styles.socialButtonText}>Google</Text>
-        </Pressable>
-
-        <Pressable style={styles.socialButton} onPress={signInWithApple}>
-          <Ionicons name="logo-apple" size={24} color="#000" />
-          <Text style={styles.socialButtonText}>Apple</Text>
         </Pressable>
       </View>
 

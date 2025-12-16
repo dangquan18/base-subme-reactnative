@@ -1,77 +1,88 @@
 // User & Auth Types
 export interface User {
-  id: string;
-  email: string;
+  id: number;
   name: string;
-  avatar?: string;
+  email: string;
+  role: "customer" | "vendor";
   phone?: string;
-  interests?: string[];
-  createdAt: Date;
-  isPremium?: boolean;
-  role: "user" | "vendor";
+  address?: string;
+  date_of_birth?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<"user" | "vendor">;
-  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<"customer" | "vendor">;
+  signUp: (email: string, password: string, name: string, phone?: string, address?: string, date_of_birth?: string) => Promise<void>;
   signOut: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
-// Package Types
-export type PackageCategory = "food" | "coffee" | "wellness" | "learning";
-export type PackageFrequency = "daily" | "weekly" | "monthly";
-
-export interface Package {
-  id: string;
+// Category Types
+export interface Category {
+  id: number;
   name: string;
   description: string;
-  category: PackageCategory;
+  icon: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Vendor Types
+export interface Vendor {
+  id: number;
+  name: string;
+  description?: string;
+  logo?: string;
+}
+
+// Package Types (Plans)
+export type DurationUnit = "ngày" | "tuần" | "tháng" | "năm";
+export type PackageStatus = "pending" | "approved" | "rejected";
+
+export interface Package {
+  id: number;
+  name: string;
+  description: string;
   price: number;
-  frequency: PackageFrequency;
-  image: string;
-  providerId: string;
-  providerName: string;
-  rating: number;
-  subscriberCount: number;
-  features: string[];
-  deliveryTime?: string;
+  duration_value: number;
+  duration_unit: DurationUnit;
+  features?: string;
+  image?: string;
+  status: PackageStatus;
+  is_active: boolean;
+  subscriber_count: number;
+  average_rating: number;
+  vendor: Vendor;
+  category: Category;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Subscription Types
-export type SubscriptionStatus =
-  | "active"
-  | "expiring_soon"
-  | "paused"
-  | "canceled";
+export type SubscriptionStatus = "active" | "expired" | "cancelled" | "pending_payment";
 
 export interface Subscription {
-  id: string;
-  userId: string;
-  packageId: string;
-  package: Package;
+  id: number;
+  user_id: number;
+  plan_id: number;
   status: SubscriptionStatus;
-  startDate: Date;
-  endDate: Date;
-  nextPaymentDate: Date;
-  paymentMethod: PaymentMethod;
-  autoRenew: boolean;
-  deliverySchedule?: DeliverySchedule[];
-}
-
-export interface DeliverySchedule {
-  id: string;
-  date: Date;
-  time: string;
-  status: "pending" | "delivered" | "missed";
-  note?: string;
+  start_date: string;
+  end_date: string;
+  auto_renew: boolean;
+  paused_at?: string;
+  cancelled_at?: string;
+  createdAt: string;
+  updatedAt: string;
+  plan: Package;
+  payments?: Payment[];
 }
 
 // Payment Types
-export type PaymentMethodType = "momo" | "vnpay" | "credit_card" | "wallet";
+export type PaymentMethodType = "VNPay" | "MoMo" | "ZaloPay" | "Credit Card";
+export type PaymentStatus = "pending" | "success" | "failed";
 
 export interface PaymentMethod {
   id: string;
@@ -82,37 +93,86 @@ export interface PaymentMethod {
 }
 
 export interface Payment {
-  id: string;
-  subscriptionId: string;
+  id: number;
+  subscription_id: number;
   amount: number;
-  status: "pending" | "paid" | "failed" | "refunded";
-  paymentMethod: PaymentMethod;
-  createdAt: Date;
-  paidAt?: Date;
+  method: PaymentMethodType;
+  status: PaymentStatus;
+  transaction_id: string;
+  createdAt: string;
+  subscription?: Subscription;
+}
+
+export interface VNPayResponse {
+  success: boolean;
+  message: string;
+  payment?: {
+    id: number;
+    subscription_id: number;
+    amount: number;
+    method: string;
+    status: string;
+    transaction_id: string;
+  };
+  payment_url?: string;
 }
 
 // Notification Types
+export type NotificationType = "subscription" | "payment" | "promotion" | "system";
+
 export interface Notification {
-  id: string;
-  userId: string;
+  id: number;
+  user_id: number;
+  type: NotificationType;
   title: string;
   message: string;
-  type: "delivery" | "payment" | "promotion" | "system";
-  read: boolean;
-  createdAt: Date;
-  actionUrl?: string;
+  is_read: boolean;
+  createdAt: string;
 }
 
-// Provider Types (for future use)
-export interface Provider {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  logo?: string;
-  description: string;
+// Review Types
+export interface Review {
+  id: number;
+  user_id: number;
+  plan_id: number;
   rating: number;
-  verified: boolean;
-  createdAt: Date;
+  comment: string;
+  createdAt: string;
+  user: {
+    id: number;
+    name: string;
+  };
+}
+
+export interface ReviewsResponse {
+  reviews: Review[];
+  average_rating: number;
+  total_reviews: number;
+  page: number;
+  limit: number;
+}
+
+// Delivery Schedule Types
+export type DeliveryStatus = "pending" | "confirmed" | "in_transit" | "delivered" | "missed" | "cancelled";
+export type DeliveryTimeSlot = "morning" | "afternoon" | "evening" | "anytime";
+
+export interface DeliverySchedule {
+  id: number;
+  subscription_id: number;
+  scheduled_date: string;
+  time_slot: DeliveryTimeSlot;
+  status: DeliveryStatus;
+  delivery_address: string;
+  delivery_note?: string;
+  delivered_at?: string;
+  delivery_proof?: string; // URL hình ảnh xác nhận giao hàng
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DeliveryScheduleResponse {
+  schedules: DeliverySchedule[];
+  total: number;
+  upcoming: number;
+  delivered: number;
 }

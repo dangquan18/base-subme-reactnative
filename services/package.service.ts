@@ -1,21 +1,33 @@
 import { apiClient } from "./api";
-import { Package, PackageCategory } from "@/types";
+import { Package, Category } from "@/types";
 
 interface GetPackagesParams {
-  category?: PackageCategory;
-  search?: string;
+  category?: number;
+  vendor?: number;
+  min_price?: number;
+  max_price?: number;
+  duration_unit?: "ngày" | "tuần" | "tháng" | "năm";
+  sort?: "price_asc" | "price_desc" | "popular" | "rating";
+  page?: number;
   limit?: number;
-  offset?: number;
 }
 
 interface PackagesResponse {
   packages: Package[];
   total: number;
+  limit: number;
+  offset: number;
   hasMore: boolean;
 }
 
+interface SearchPackagesParams {
+  keyword: string;
+  page?: number;
+  limit?: number;
+}
+
 export const packageService = {
-  // Get all packages
+  // Get all packages with filters
   async getPackages(params?: GetPackagesParams): Promise<PackagesResponse> {
     try {
       const response = await apiClient.get<PackagesResponse>("/packages", {
@@ -29,7 +41,7 @@ export const packageService = {
   },
 
   // Get package by ID
-  async getPackageById(id: string): Promise<Package> {
+  async getPackageById(id: number): Promise<Package> {
     try {
       const response = await apiClient.get<Package>(`/packages/${id}`);
       return response;
@@ -40,9 +52,11 @@ export const packageService = {
   },
 
   // Get featured packages
-  async getFeaturedPackages(): Promise<Package[]> {
+  async getFeaturedPackages(limit?: number): Promise<Package[]> {
     try {
-      const response = await apiClient.get<Package[]>("/packages/featured");
+      const response = await apiClient.get<Package[]>("/packages/featured", {
+        params: { limit },
+      });
       return response;
     } catch (error) {
       console.error("Get featured packages error:", error);
@@ -51,10 +65,10 @@ export const packageService = {
   },
 
   // Get packages by category
-  async getPackagesByCategory(category: PackageCategory): Promise<Package[]> {
+  async getPackagesByCategory(categoryId: number): Promise<Package[]> {
     try {
       const response = await apiClient.get<Package[]>(
-        `/packages/category/${category}`
+        `/packages/category/${categoryId}`
       );
       return response;
     } catch (error) {
@@ -64,14 +78,69 @@ export const packageService = {
   },
 
   // Search packages
-  async searchPackages(query: string): Promise<Package[]> {
+  async searchPackages(params: SearchPackagesParams): Promise<PackagesResponse> {
     try {
-      const response = await apiClient.get<Package[]>("/packages/search", {
-        params: { q: query },
+      const response = await apiClient.get<PackagesResponse>("/packages/search", {
+        params,
       });
       return response;
     } catch (error) {
       console.error("Search packages error:", error);
+      throw error;
+    }
+  },
+
+  // Get all categories
+  async getCategories(): Promise<Category[]> {
+    try {
+      const response = await apiClient.get<Category[]>("/categories");
+      return response;
+    } catch (error) {
+      console.error("Get categories error:", error);
+      throw error;
+    }
+  },
+
+  // Get category detail with packages
+  async getCategoryDetail(id: number): Promise<Category & { plans: Package[] }> {
+    try {
+      const response = await apiClient.get<Category & { plans: Package[] }>(
+        `/categories/${id}`
+      );
+      return response;
+    } catch (error) {
+      console.error("Get category detail error:", error);
+      throw error;
+    }
+  },
+
+  // Get user favorites
+  async getFavorites(): Promise<Package[]> {
+    try {
+      const response = await apiClient.get<Package[]>("/users/favorites");
+      return response;
+    } catch (error) {
+      console.error("Get favorites error:", error);
+      throw error;
+    }
+  },
+
+  // Add to favorites
+  async addToFavorites(planId: number): Promise<void> {
+    try {
+      await apiClient.post(`/users/favorites/${planId}`);
+    } catch (error) {
+      console.error("Add to favorites error:", error);
+      throw error;
+    }
+  },
+
+  // Remove from favorites
+  async removeFromFavorites(planId: number): Promise<void> {
+    try {
+      await apiClient.delete(`/users/favorites/${planId}`);
+    } catch (error) {
+      console.error("Remove from favorites error:", error);
       throw error;
     }
   },

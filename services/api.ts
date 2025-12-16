@@ -43,6 +43,7 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => {
         console.log("✅ API Response:", response.status, response.config.url);
+        console.log("📥 Response Data:", response.data);
         return response;
       },
       async (error) => {

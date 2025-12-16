@@ -1,11 +1,24 @@
 import { apiClient } from "./api";
 import { Notification } from "@/types";
 
+interface GetNotificationsParams {
+  is_read?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+interface NotificationsResponse {
+  data: Notification[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export const notificationService = {
   // Get all notifications
-  async getNotifications(): Promise<Notification[]> {
+  async getNotifications(params?: GetNotificationsParams): Promise<NotificationsResponse> {
     try {
-      const response = await apiClient.get<Notification[]>("/notifications");
+      const response = await apiClient.get<NotificationsResponse>("/notifications", { params });
       return response;
     } catch (error) {
       console.error("Get notifications error:", error);
@@ -13,8 +26,19 @@ export const notificationService = {
     }
   },
 
+  // Get unread count
+  async getUnreadCount(): Promise<number> {
+    try {
+      const response = await apiClient.get<{ count: number }>("/notifications/unread-count");
+      return response.count;
+    } catch (error) {
+      console.error("Get unread count error:", error);
+      throw error;
+    }
+  },
+
   // Mark notification as read
-  async markAsRead(id: string): Promise<void> {
+  async markAsRead(id: number): Promise<void> {
     try {
       await apiClient.patch(`/notifications/${id}/read`);
     } catch (error) {
@@ -34,24 +58,11 @@ export const notificationService = {
   },
 
   // Delete notification
-  async deleteNotification(id: string): Promise<void> {
+  async deleteNotification(id: number): Promise<void> {
     try {
       await apiClient.delete(`/notifications/${id}`);
     } catch (error) {
       console.error("Delete notification error:", error);
-      throw error;
-    }
-  },
-
-  // Get unread count
-  async getUnreadCount(): Promise<number> {
-    try {
-      const response = await apiClient.get<{ count: number }>(
-        "/notifications/unread-count"
-      );
-      return response.count;
-    } catch (error) {
-      console.error("Get unread count error:", error);
       throw error;
     }
   },

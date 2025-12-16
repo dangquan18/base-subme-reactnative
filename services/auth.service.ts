@@ -1,23 +1,29 @@
 import { apiClient } from "./api";
 import { User } from "@/types";
-import { tokenManager, decodeJWT } from "@/utils/storage";
+import { tokenManager } from "@/utils/storage";
 
 interface LoginResponse {
-  access_token: string;
+  success: boolean;
+  message: string;
+  data: {
+    user: User;
+    access_token: string;
+    refresh_token: string;
+  };
 }
 
-interface DecodedToken {
-  email: string;
-  sub: number; // user id
-  role: "user" | "vendor";
-  iat: number;
-  exp: number;
-}
-
-interface SignUpRequest {
+interface RegisterRequest {
+  name: string;
   email: string;
   password: string;
-  name: string;
+  phone?: string;
+  address?: string;
+  date_of_birth?: string;
+}
+
+interface ChangePasswordRequest {
+  old_password: string;
+  new_password: string;
 }
 
 export const authService = {
@@ -25,31 +31,24 @@ export const authService = {
   async signIn(email: string, password: string): Promise<User> {
     try {
       console.log("🔐 Attempting login with:", email);
-      const response = await apiClient.post<LoginResponse>("/auth/login", {
+      const response = await apiClient.post<any>("/auth/login", {
         email,
         password,
       });
       console.log("✅ Login response received:", response);
 
-      // Save token
+      if (!response.success) {
+        throw new Error(response.message || "Login failed");
+      }
+
+      // Save tokens
       await tokenManager.setToken(response.access_token);
-
-      // Decode token to get user info
-      const decoded = decodeJWT<DecodedToken>(response.access_token);
-
-      // Create user object
-      const user: User = {
-        id: decoded.sub.toString(),
-        email: decoded.email,
-        name: "", // Will be fetched from profile
-        role: decoded.role,
-        createdAt: new Date(),
-      };
+      await tokenManager.setRefreshToken(response.refresh_token);
 
       // Save user data
-      await tokenManager.setUser(user);
+      await tokenManager.setUser(response.user);
 
-      return user;
+      return response.user;
     } catch (error: any) {
       console.error("❌ Sign in error:", error);
       console.error("Error details:", {
@@ -61,40 +60,32 @@ export const authService = {
     }
   },
 
-  // Sign up
-  async signUp(data: SignUpRequest): Promise<User> {
+  // Sign up (Register)
+  async signUp(data: RegisterRequest): Promise<User> {
     try {
-      const response = await apiClient.post<LoginResponse>(
-        "/auth/signup",
-        data
-      );
+      console.log("📝 Attempting registration with:", data.email);
+      const response = await apiClient.post<any>("/auth/register", data);
+      console.log("✅ Registration response received");
 
-      // Save token and decode
+      if (!response.success) {
+        throw new Error(response.message || "Registration failed");
+      }
+
+      // Save tokens
       await tokenManager.setToken(response.access_token);
-      const decoded = decodeJWT<DecodedToken>(response.access_token);
+      await tokenManager.setRefreshToken(response.refresh_token);
 
-      const user: User = {
-        id: decoded.sub.toString(),
-        email: decoded.email,
-        name: data.name,
-        role: decoded.role,
-        createdAt: new Date(),
-      };
+      // Save user data
+      await tokenManager.setUser(response.user);
 
-      await tokenManager.setUser(user);
-      return user;
-    } catch (error) {
-      console.error("Sign up error:", error);
-      throw error;
-    }
-  },
-
-  // Sign out
-  async signOut(): Promise<void> {
-    try {
-      await apiClient.post("/auth/signout");
-    } catch (error) {
-      console.error("Sign out error:", error);
+      return response.user;
+    } catch (error: any) {
+      console.error("❌ Sign up error:", error);
+      console.error("Error details:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
       throw error;
     }
   },
@@ -102,10 +93,52 @@ export const authService = {
   // Get current user
   async getCurrentUser(): Promise<User> {
     try {
-      const response = await apiClient.get<User>("/auth/me");
-      return response;
+      const response = await apiClient.get<{ success: boolean; data: User }>("/auth/me");
+      return response.data;
     } catch (error) {
       console.error("Get current user error:", error);
+      throw error;
+    }
+  },
+
+  // Change password
+  async changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    try {
+      await apiClient.post<{ success: boolean; message: string }>("/auth/change-password", {
+        old_password: oldPassword,
+        new_password: newPassword,
+      });
+    } catch (error) {
+      console.error("Change password error:", error);
+      throw error;
+    }
+  },
+
+  // Refresh token
+  async refreshToken(refreshToken: string): Promise<{ access_token: string; refresh_token: string }> {
+    try {
+      const response = await apiClient.post<{
+        success: boolean;
+        data: { access_token: string; refresh_token: string };
+      }>("/auth/refresh", {
+        refresh_token: refreshToken,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Refresh token error:", error);
+      throw error;
+    }
+  },
+
+  // Sign out (Logout)
+  async signOut(): Promise<void> {
+    try {
+      await apiClient.post("/auth/logout");
+      await tokenManager.clearAuth();
+    } catch (error) {
+      console.error("Sign out error:", error);
+      // Clear local data even if API call fails
+      await tokenManager.clearAuth();
       throw error;
     }
   },
@@ -113,7 +146,7 @@ export const authService = {
   // Update user profile
   async updateProfile(data: Partial<User>): Promise<User> {
     try {
-      const response = await apiClient.patch<User>("/auth/profile", data);
+      const response = await apiClient.patch<User>("/users/profile", data);
       return response;
     } catch (error) {
       console.error("Update profile error:", error);
@@ -121,15 +154,13 @@ export const authService = {
     }
   },
 
-  // Update interests
-  async updateInterests(interests: string[]): Promise<User> {
+  // Get user profile
+  async getProfile(): Promise<User> {
     try {
-      const response = await apiClient.patch<User>("/auth/interests", {
-        interests,
-      });
+      const response = await apiClient.get<User>("/users/profile");
       return response;
     } catch (error) {
-      console.error("Update interests error:", error);
+      console.error("Get profile error:", error);
       throw error;
     }
   },

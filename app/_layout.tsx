@@ -11,7 +11,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 export const unstable_settings = {
-  anchor: "(tabs)",
+  initialRouteName: "index",
 };
 
 export default function RootLayout() {
@@ -20,7 +20,8 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Stack>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(vendor)" options={{ headerShown: false }} />

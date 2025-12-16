@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,32 +6,47 @@ import {
   ScrollView,
   Pressable,
   Alert,
+  ActivityIndicator,
+  Linking,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { PAYMENT_METHODS } from "@/constants/categories";
+import { packageService } from "@/services/package.service";
+import { subscriptionService } from "@/services/subscription.service";
+import { paymentService } from "@/services/payment.service";
+import { Package } from "@/types";
 
 export default function CheckoutScreen() {
   const router = useRouter();
-  const [selectedPayment, setSelectedPayment] = useState("momo");
-  const [selectedDuration, setSelectedDuration] = useState<
-    "weekly" | "monthly"
-  >("monthly");
+  const { packageId } = useLocalSearchParams();
+  const [packageData, setPackageData] = useState<Package | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState("VNPay");
   const [autoRenew, setAutoRenew] = useState(true);
 
-  const packageInfo = {
-    name: "Cà phê sáng mỗi ngày",
-    provider: "The Coffee House",
-    basePrice: 299000,
+  useEffect(() => {
+    loadPackage();
+  }, [packageId]);
+
+  const loadPackage = async () => {
+    try {
+      setLoading(true);
+      const pkg = await packageService.getPackageById(Number(packageId));
+      setPackageData(pkg);
+    } catch (error) {
+      console.error("Error loading package:", error);
+      Alert.alert("Lỗi", "Không thể tải thông tin gói dịch vụ");
+      router.back();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const durations = [
-    { id: "weekly", label: "1 tuần", discount: 0, price: 299000 },
-    { id: "monthly", label: "1 tháng", discount: 10, price: 269100 },
+  const paymentMethods = [
+    { id: "VNPay", name: "VNPay", icon: "card-outline", color: "#1A73E8" },
+    { id: "MoMo", name: "MoMo", icon: "wallet-outline", color: "#A50064" },
   ];
-
-  const selectedPrice = durations.find((d) => d.id === selectedDuration)!;
-  const totalPrice = selectedPrice.price;
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -40,22 +55,71 @@ export default function CheckoutScreen() {
     }).format(price);
   };
 
-  const handlePayment = () => {
-    Alert.alert(
-      "Xác nhận thanh toán",
-      `Bạn có chắc muốn thanh toán ${formatPrice(totalPrice)}?`,
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xác nhận",
-          onPress: () => {
-            // TODO: Process payment
-            router.push("/payment-success" as any);
-          },
-        },
-      ]
-    );
+  const handlePayment = async () => {
+    if (!packageData) return;
+
+    try {
+      setProcessing(true);
+
+      // Step 1: Create subscription
+      const subscriptionResult = await subscriptionService.createSubscription({
+        plan_id: packageData.id,
+        payment_method: selectedPayment,
+        auto_renew: autoRenew,
+      });
+
+      if (!subscriptionResult.success) {
+        throw new Error(subscriptionResult.message);
+      }
+
+      // Step 2: Process payment (get VNPay URL)
+      const paymentResult = await paymentService.processPayment({
+        subscription_id: subscriptionResult.subscription.id,
+        amount: Number(packageData.price),
+        payment_method: selectedPayment,
+        return_url: "exp://localhost:8081/payment-success", // For development
+      });
+
+      if (paymentResult.success && paymentResult.payment_url) {
+        // Open VNPay URL
+        const supported = await Linking.canOpenURL(paymentResult.payment_url);
+        if (supported) {
+          await Linking.openURL(paymentResult.payment_url);
+          Alert.alert(
+            "Thanh toán",
+            "Vui lòng hoàn tất thanh toán trên trang VNPay",
+            [
+              {
+                text: "OK",
+                onPress: () => router.replace("/(tabs)/subscriptions"),
+              },
+            ]
+          );
+        } else {
+          throw new Error("Không thể mở link thanh toán");
+        }
+      } else {
+        throw new Error("Không thể tạo link thanh toán");
+      }
+    } catch (error: any) {
+      console.error("Payment error:", error);
+      Alert.alert(
+        "Lỗi thanh toán",
+        error.response?.data?.message || error.message || "Không thể xử lý thanh toán"
+      );
+    } finally {
+      setProcessing(false);
+    }
   };
+
+  if (loading || !packageData) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#667eea" />
+        <Text style={{ marginTop: 16, color: "#666" }}>Đang tải...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -64,61 +128,18 @@ export default function CheckoutScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Thông tin gói</Text>
           <View style={styles.packageCard}>
-            <Text style={styles.packageName}>{packageInfo.name}</Text>
-            <Text style={styles.packageProvider}>{packageInfo.provider}</Text>
+            <Text style={styles.packageName}>{packageData.name}</Text>
+            <Text style={styles.packageProvider}>{packageData.vendor.name}</Text>
+            <Text style={styles.packageDuration}>
+              Thời hạn: {packageData.duration_value} {packageData.duration_unit}
+            </Text>
           </View>
-        </View>
-
-        {/* Duration Selection */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Chọn kỳ hạn</Text>
-          {durations.map((duration) => (
-            <Pressable
-              key={duration.id}
-              style={[
-                styles.durationCard,
-                selectedDuration === duration.id && styles.durationCardSelected,
-              ]}
-              onPress={() => setSelectedDuration(duration.id as any)}
-            >
-              <View style={styles.durationInfo}>
-                <Text
-                  style={[
-                    styles.durationLabel,
-                    selectedDuration === duration.id && styles.textSelected,
-                  ]}
-                >
-                  {duration.label}
-                </Text>
-                {duration.discount > 0 && (
-                  <View style={styles.discountBadge}>
-                    <Text style={styles.discountText}>
-                      -{duration.discount}%
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text
-                style={[
-                  styles.durationPrice,
-                  selectedDuration === duration.id && styles.textSelected,
-                ]}
-              >
-                {formatPrice(duration.price)}
-              </Text>
-              <View style={styles.radioButton}>
-                {selectedDuration === duration.id && (
-                  <View style={styles.radioButtonInner} />
-                )}
-              </View>
-            </Pressable>
-          ))}
         </View>
 
         {/* Payment Methods */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Phương thức thanh toán</Text>
-          {PAYMENT_METHODS.map((method) => (
+          {paymentMethods.map((method) => (
             <Pressable
               key={method.id}
               style={[
@@ -177,21 +198,13 @@ export default function CheckoutScreen() {
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Giá gốc</Text>
               <Text style={styles.summaryValue}>
-                {formatPrice(packageInfo.basePrice)}
+                {formatPrice(packageData.price)}
               </Text>
             </View>
-            {selectedPrice.discount > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Giảm giá</Text>
-                <Text style={styles.summaryDiscount}>
-                  -{formatPrice(packageInfo.basePrice - selectedPrice.price)}
-                </Text>
-              </View>
-            )}
             <View style={styles.divider} />
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Tổng cộng</Text>
-              <Text style={styles.totalPrice}>{formatPrice(totalPrice)}</Text>
+              <Text style={styles.totalPrice}>{formatPrice(packageData.price)}</Text>
             </View>
           </View>
         </View>
@@ -201,10 +214,18 @@ export default function CheckoutScreen() {
       <View style={styles.footer}>
         <View style={styles.footerPrice}>
           <Text style={styles.footerPriceLabel}>Tổng thanh toán</Text>
-          <Text style={styles.footerPriceValue}>{formatPrice(totalPrice)}</Text>
+          <Text style={styles.footerPriceValue}>{formatPrice(packageData.price)}</Text>
         </View>
-        <Pressable style={styles.payButton} onPress={handlePayment}>
-          <Text style={styles.payButtonText}>Xác nhận thanh toán</Text>
+        <Pressable 
+          style={[styles.payButton, processing && styles.payButtonDisabled]} 
+          onPress={handlePayment}
+          disabled={processing}
+        >
+          {processing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.payButtonText}>Xác nhận thanh toán</Text>
+          )}
         </Pressable>
       </View>
     </View>
@@ -439,6 +460,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
+  },
+  payButtonDisabled: {
+    opacity: 0.5,
   },
   payButtonText: {
     fontSize: 16,

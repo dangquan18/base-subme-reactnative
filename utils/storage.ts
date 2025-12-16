@@ -1,11 +1,15 @@
 // Utility for local storage management
 // Use expo-secure-store for sensitive data in production
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const storage = {
   async setItem(key: string, value: string): Promise<void> {
     try {
-      if (typeof window !== "undefined") {
+      if (Platform.OS === 'web' && typeof window !== "undefined") {
         localStorage.setItem(key, value);
+      } else {
+        await AsyncStorage.setItem(key, value);
       }
     } catch (error) {
       console.error("Error storing data:", error);
@@ -14,10 +18,11 @@ const storage = {
 
   async getItem(key: string): Promise<string | null> {
     try {
-      if (typeof window !== "undefined") {
+      if (Platform.OS === 'web' && typeof window !== "undefined") {
         return localStorage.getItem(key);
+      } else {
+        return await AsyncStorage.getItem(key);
       }
-      return null;
     } catch (error) {
       console.error("Error retrieving data:", error);
       return null;
@@ -26,8 +31,10 @@ const storage = {
 
   async removeItem(key: string): Promise<void> {
     try {
-      if (typeof window !== "undefined") {
+      if (Platform.OS === 'web' && typeof window !== "undefined") {
         localStorage.removeItem(key);
+      } else {
+        await AsyncStorage.removeItem(key);
       }
     } catch (error) {
       console.error("Error removing data:", error);
@@ -36,8 +43,10 @@ const storage = {
 
   async clear(): Promise<void> {
     try {
-      if (typeof window !== "undefined") {
+      if (Platform.OS === 'web' && typeof window !== "undefined") {
         localStorage.clear();
+      } else {
+        await AsyncStorage.clear();
       }
     } catch (error) {
       console.error("Error clearing storage:", error);
@@ -49,6 +58,7 @@ export default storage;
 
 // Token management
 export const TOKEN_KEY = "auth_token";
+export const REFRESH_TOKEN_KEY = "refresh_token";
 export const USER_KEY = "user_data";
 
 export const tokenManager = {
@@ -62,6 +72,18 @@ export const tokenManager = {
 
   async removeToken(): Promise<void> {
     await storage.removeItem(TOKEN_KEY);
+  },
+
+  async setRefreshToken(token: string): Promise<void> {
+    await storage.setItem(REFRESH_TOKEN_KEY, token);
+  },
+
+  async getRefreshToken(): Promise<string | null> {
+    return await storage.getItem(REFRESH_TOKEN_KEY);
+  },
+
+  async removeRefreshToken(): Promise<void> {
+    await storage.removeItem(REFRESH_TOKEN_KEY);
   },
 
   async setUser(user: any): Promise<void> {
@@ -80,6 +102,7 @@ export const tokenManager = {
   async clearAuth(): Promise<void> {
     await Promise.all([
       storage.removeItem(TOKEN_KEY),
+      storage.removeItem(REFRESH_TOKEN_KEY),
       storage.removeItem(USER_KEY),
     ]);
   },

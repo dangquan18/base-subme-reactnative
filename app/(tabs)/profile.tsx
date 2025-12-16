@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,12 +8,17 @@ import {
   Switch,
   Image,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppTheme } from "@/constants/theme";
+import { packageService } from "@/services/package.service";
+import { paymentService } from "@/services/payment.service";
+import { Package, Payment } from "@/types";
 
 interface MenuItem {
   icon: string;
@@ -33,12 +38,55 @@ interface MenuSection {
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [autoPayEnabled, setAutoPayEnabled] = React.useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [autoPayEnabled, setAutoPayEnabled] = useState(true);
+  const [favorites, setFavorites] = useState<Package[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [favoritesData, paymentsData] = await Promise.all([
+        packageService.getFavorites().catch(() => []),
+        paymentService.getPaymentHistory().catch(() => []),
+      ]);
+      setFavorites(favoritesData);
+      setPayments(paymentsData);
+    } catch (error) {
+      console.error('Failed to load profile data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSignOut = async () => {
-    await signOut();
-    router.replace("/(auth)/welcome");
+    Alert.alert(
+      'Đăng xuất',
+      'Bạn có chắc muốn đăng xuất?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đăng xuất',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/(auth)/welcome');
+          },
+        },
+      ]
+    );
+  };
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+    }).format(price);
   };
 
   const menuItems: MenuSection[] = [
@@ -156,20 +204,94 @@ export default function ProfileScreen() {
         {/* Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>3</Text>
-            <Text style={styles.statLabel}>Gói đăng ký</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>1,200đ</Text>
-            <Text style={styles.statLabel}>Điểm thưởng</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>2</Text>
+            <Text style={styles.statValue}>{favorites.length}</Text>
             <Text style={styles.statLabel}>Yêu thích</Text>
           </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{payments.length}</Text>
+            <Text style={styles.statLabel}>Giao dịch</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>
+              {formatPrice(payments.reduce((sum, p) => sum + p.amount, 0))}
+            </Text>
+            <Text style={styles.statLabel}>Tổng chi</Text>
+          </View>
         </View>
+
+        {/* Favorites Section */}
+        {favorites.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Gói yêu thích</Text>
+              <Pressable onPress={() => router.push('/(tabs)/explore')}>
+                <Text style={styles.seeAllText}>Xem tất cả</Text>
+              </Pressable>
+            </View>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.favoritesContainer}
+            >
+              {favorites.slice(0, 5).map((pkg) => (
+                <Pressable
+                  key={pkg.id}
+                  style={styles.favoriteCard}
+                  onPress={() => router.push(`/package/${pkg.id}`)}
+                >
+                  <Image
+                    source={{ uri: pkg.image }}
+                    style={styles.favoriteImage}
+                  />
+                  <Text style={styles.favoriteName} numberOfLines={2}>
+                    {pkg.name}
+                  </Text>
+                  <Text style={styles.favoritePrice}>{formatPrice(pkg.price)}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Payment History */}
+        {payments.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Lịch sử giao dịch</Text>
+            </View>
+            <View style={styles.menuCard}>
+              {payments.slice(0, 5).map((payment, index) => (
+                <View key={payment.id}>
+                  <Pressable style={styles.paymentItem}>
+                    <View style={styles.paymentLeft}>
+                      <View style={[styles.paymentIcon, { backgroundColor: payment.status === 'success' ? '#E8F5E9' : '#FFEBEE' }]}>
+                        <Ionicons
+                          name={payment.status === 'success' ? 'checkmark-circle' : 'close-circle'}
+                          size={20}
+                          color={payment.status === 'success' ? '#4CAF50' : '#F44336'}
+                        />
+                      </View>
+                      <View>
+                        <Text style={styles.paymentTitle}>{payment.subscription?.package.name || 'Thanh toán'}</Text>
+                        <Text style={styles.paymentDate}>
+                          {new Date(payment.created_at).toLocaleDateString('vi-VN')}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.paymentAmount, { color: payment.status === 'success' ? '#4CAF50' : '#F44336' }]}>
+                      {payment.status === 'success' ? '-' : ''}{formatPrice(payment.amount)}
+                    </Text>
+                  </Pressable>
+                  {index < Math.min(payments.length, 5) - 1 && (
+                    <View style={styles.menuDivider} />
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Menu Sections */}
         {menuItems.map((section, sectionIndex) => (
@@ -434,6 +556,79 @@ const styles = StyleSheet.create({
     fontSize: AppTheme.fontSize.md,
     fontWeight: AppTheme.fontWeight.semibold,
     color: AppTheme.colors.error,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  seeAllText: {
+    fontSize: 14,
+    color: AppTheme.colors.primary,
+    fontWeight: '600',
+  },
+  favoritesContainer: {
+    paddingLeft: AppTheme.spacing.xl,
+    gap: 12,
+  },
+  favoriteCard: {
+    width: 140,
+    backgroundColor: AppTheme.colors.backgroundWhite,
+    borderRadius: 12,
+    padding: 8,
+    marginRight: 12,
+    ...AppTheme.shadow.sm,
+  },
+  favoriteImage: {
+    width: '100%',
+    height: 100,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  favoriteName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: AppTheme.colors.text,
+    marginBottom: 4,
+  },
+  favoritePrice: {
+    fontSize: 14,
+    color: AppTheme.colors.primary,
+    fontWeight: '700',
+  },
+  paymentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+  },
+  paymentLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  paymentIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: AppTheme.colors.text,
+    marginBottom: 2,
+  },
+  paymentDate: {
+    fontSize: 12,
+    color: AppTheme.colors.textLight,
+  },
+  paymentAmount: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   footer: {
     alignItems: "center",

@@ -53,16 +53,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { authService } = await import("@/services/auth.service");
       const user = await authService.signIn(email, password);
       setUser(user);
-      return user.role;
+      return user.role as "customer" | "vendor";
     } catch (error) {
       throw error;
     }
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    name: string,
+    phone?: string,
+    address?: string,
+    date_of_birth?: string
+  ) => {
     try {
       const { authService } = await import("@/services/auth.service");
-      const user = await authService.signUp({ email, password, name });
+      const user = await authService.signUp({
+        email,
+        password,
+        name,
+        phone,
+        address,
+        date_of_birth,
+      });
       setUser(user);
     } catch (error) {
       throw error;
@@ -71,22 +85,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     try {
-      const { tokenManager } = await import("@/utils/storage");
-      await tokenManager.clearAuth();
+      const { authService } = await import("@/services/auth.service");
+      await authService.signOut();
       setUser(null);
     } catch (error) {
       console.error("Failed to sign out:", error);
+      // Clear user anyway
+      const { tokenManager } = await import("@/utils/storage");
+      await tokenManager.clearAuth();
+      setUser(null);
     }
   };
 
-  const signInWithGoogle = async () => {
-    // TODO: Implement Google Sign In
-    console.log("Sign in with Google");
-  };
-
-  const signInWithApple = async () => {
-    // TODO: Implement Apple Sign In
-    console.log("Sign in with Apple");
+  const updateProfile = async (data: Partial<User>) => {
+    try {
+      const { authService } = await import("@/services/auth.service");
+      const updatedUser = await authService.updateProfile(data);
+      setUser(updatedUser);
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      throw error;
+    }
   };
 
   return (
@@ -97,8 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signIn,
         signUp,
         signOut,
-        signInWithGoogle,
-        signInWithApple,
+        updateProfile,
       }}
     >
       {children}

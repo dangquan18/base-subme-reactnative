@@ -1,88 +1,41 @@
 import { apiClient } from "./api";
-import { Payment, PaymentMethod } from "@/types";
+import { Payment, VNPayResponse } from "@/types";
 
-interface CreatePaymentRequest {
-  subscriptionId: string;
-  paymentMethodId: string;
+interface ProcessPaymentRequest {
+  subscription_id: number;
   amount: number;
+  payment_method: string;
+  return_url: string;
 }
 
-interface ProcessPaymentResponse {
-  payment: Payment;
-  paymentUrl?: string; // For MoMo/VNPay redirect
+interface PaymentHistoryParams {
+  page?: number;
+  limit?: number;
+}
+
+interface PaymentHistoryResponse {
+  data: Payment[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 export const paymentService = {
-  // Get payment methods
-  async getPaymentMethods(): Promise<PaymentMethod[]> {
+  // Process payment (generate VNPay URL)
+  async processPayment(data: ProcessPaymentRequest): Promise<VNPayResponse> {
     try {
-      const response = await apiClient.get<PaymentMethod[]>(
-        "/payments/methods"
-      );
+      const response = await apiClient.post<VNPayResponse>("/payments/process", data);
       return response;
     } catch (error) {
-      console.error("Get payment methods error:", error);
-      throw error;
-    }
-  },
-
-  // Add payment method
-  async addPaymentMethod(data: Partial<PaymentMethod>): Promise<PaymentMethod> {
-    try {
-      const response = await apiClient.post<PaymentMethod>(
-        "/payments/methods",
-        data
-      );
-      return response;
-    } catch (error) {
-      console.error("Add payment method error:", error);
-      throw error;
-    }
-  },
-
-  // Remove payment method
-  async removePaymentMethod(id: string): Promise<void> {
-    try {
-      await apiClient.delete(`/payments/methods/${id}`);
-    } catch (error) {
-      console.error("Remove payment method error:", error);
-      throw error;
-    }
-  },
-
-  // Set default payment method
-  async setDefaultPaymentMethod(id: string): Promise<PaymentMethod> {
-    try {
-      const response = await apiClient.post<PaymentMethod>(
-        `/payments/methods/${id}/default`
-      );
-      return response;
-    } catch (error) {
-      console.error("Set default payment method error:", error);
-      throw error;
-    }
-  },
-
-  // Create payment
-  async createPayment(
-    data: CreatePaymentRequest
-  ): Promise<ProcessPaymentResponse> {
-    try {
-      const response = await apiClient.post<ProcessPaymentResponse>(
-        "/payments",
-        data
-      );
-      return response;
-    } catch (error) {
-      console.error("Create payment error:", error);
+      console.error("Process payment error:", error);
       throw error;
     }
   },
 
   // Get payment history
-  async getPaymentHistory(): Promise<Payment[]> {
+  async getPaymentHistory(params?: PaymentHistoryParams): Promise<PaymentHistoryResponse> {
     try {
-      const response = await apiClient.get<Payment[]>("/payments/history");
+      const response = await apiClient.get<PaymentHistoryResponse>("/payments/history", { params });
       return response;
     } catch (error) {
       console.error("Get payment history error:", error);
@@ -91,26 +44,12 @@ export const paymentService = {
   },
 
   // Get payment by ID
-  async getPaymentById(id: string): Promise<Payment> {
+  async getPaymentById(id: number): Promise<Payment> {
     try {
       const response = await apiClient.get<Payment>(`/payments/${id}`);
       return response;
     } catch (error) {
       console.error("Get payment by ID error:", error);
-      throw error;
-    }
-  },
-
-  // Verify payment (callback from MoMo/VNPay)
-  async verifyPayment(paymentId: string, data: any): Promise<Payment> {
-    try {
-      const response = await apiClient.post<Payment>(
-        `/payments/${paymentId}/verify`,
-        data
-      );
-      return response;
-    } catch (error) {
-      console.error("Verify payment error:", error);
       throw error;
     }
   },

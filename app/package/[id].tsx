@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,55 +6,48 @@ import {
   ScrollView,
   Image,
   Pressable,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Package } from "@/types";
-
-// Mock data - in real app, fetch from API
-const MOCK_PACKAGE: Package = {
-  id: "1",
-  name: "Cà phê sáng mỗi ngày",
-  description:
-    "Bắt đầu ngày mới với ly cà phê ngon, pha chế từ hạt cà phê Arabica cao cấp. Bạn có thể chọn các loại đồ uống yêu thích và thay đổi linh hoạt mỗi ngày.",
-  category: "coffee",
-  price: 299000,
-  frequency: "daily",
-  image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085",
-  providerId: "1",
-  providerName: "The Coffee House",
-  rating: 4.8,
-  subscriberCount: 1234,
-  features: [
-    "Free delivery trong bán kính 3km",
-    "Chọn size: S, M, L",
-    "Đổi món linh hoạt",
-    "Giao hàng đúng giờ",
-    "Tích điểm thưởng",
-  ],
-  deliveryTime: "7:00 - 9:00 sáng",
-};
-
-const REVIEWS = [
-  {
-    id: "1",
-    userName: "Nguyễn Văn A",
-    rating: 5,
-    comment: "Cà phê rất ngon, giao hàng đúng giờ. Rất hài lòng!",
-    date: "2 ngày trước",
-  },
-  {
-    id: "2",
-    userName: "Trần Thị B",
-    rating: 4,
-    comment: "Chất lượng ổn, giá cả hợp lý",
-    date: "1 tuần trước",
-  },
-];
+import { packageService } from "@/services/package.service";
+import { reviewService } from "@/services/review.service";
+import { Package, Review } from "@/types";
 
 export default function PackageDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const [packageData, setPackageData] = useState<Package | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadPackageDetail();
+  }, [id]);
+
+  const loadPackageDetail = async () => {
+    try {
+      setLoading(true);
+      // Load package data first
+      const pkgData = await packageService.getPackageById(Number(id));
+      setPackageData(pkgData);
+      
+      // Try to load reviews, but don't fail if it errors
+      try {
+        const reviewsData = await reviewService.getPlanReviews(Number(id), { limit: 5 });
+        setReviews(reviewsData?.reviews || []);
+      } catch (reviewError) {
+        console.error("Error loading reviews (non-critical):", reviewError);
+        setReviews([]);
+      }
+    } catch (error) {
+      console.error("Error loading package detail:", error);
+      Alert.alert("Lỗi", "Không thể tải thông tin gói dịch vụ");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -63,28 +56,61 @@ export default function PackageDetailScreen() {
     }).format(price);
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return "Hôm nay";
+    if (diffDays === 1) return "Hôm qua";
+    if (diffDays < 7) return `${diffDays} ngày trước`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} tuần trước`;
+    return `${Math.floor(diffDays / 30)} tháng trước`;
+  };
+
+  const getFeatures = (featuresString?: string) => {
+    if (!featuresString) return [];
+    return featuresString.split(",").map(f => f.trim());
+  };
+
+  if (loading || !packageData) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#667eea" />
+        <Text style={{ marginTop: 16, color: "#666" }}>Đang tải...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Header Image */}
-        <Image
-          source={{ uri: MOCK_PACKAGE.image }}
-          style={styles.headerImage}
-          defaultSource={require("@/assets/images/partial-react-logo.png")}
-        />
+        {packageData.image ? (
+          <Image
+            source={{ uri: packageData.image }}
+            style={styles.headerImage}
+            defaultSource={require("@/assets/images/partial-react-logo.png")}
+          />
+        ) : (
+          <View style={[styles.headerImage, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
+            <Ionicons name="image-outline" size={64} color="#ccc" />
+          </View>
+        )}
 
         {/* Content */}
         <View style={styles.detailContent}>
           {/* Title & Rating */}
           <View style={styles.titleSection}>
-            <Text style={styles.packageName}>{MOCK_PACKAGE.name}</Text>
+            <Text style={styles.packageName}>{packageData.name}</Text>
             <View style={styles.ratingRow}>
               <View style={styles.ratingContainer}>
                 <Ionicons name="star" size={18} color="#FFC107" />
-                <Text style={styles.ratingText}>{MOCK_PACKAGE.rating}</Text>
+                <Text style={styles.ratingText}>{Number(packageData.average_rating || 0).toFixed(1)}</Text>
               </View>
               <Text style={styles.subscriberText}>
-                {MOCK_PACKAGE.subscriberCount}+ người đăng ký
+                {packageData.subscriber_count}+ người đăng ký
               </Text>
             </View>
           </View>
@@ -92,32 +118,36 @@ export default function PackageDetailScreen() {
           {/* Provider */}
           <View style={styles.providerSection}>
             <Ionicons name="storefront-outline" size={20} color="#667eea" />
-            <Text style={styles.providerName}>{MOCK_PACKAGE.providerName}</Text>
+            <Text style={styles.providerName}>{packageData.vendor.name}</Text>
           </View>
 
           {/* Description */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Mô tả</Text>
-            <Text style={styles.description}>{MOCK_PACKAGE.description}</Text>
+            <Text style={styles.description}>{packageData.description}</Text>
           </View>
 
           {/* Features */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Quyền lợi</Text>
-            {MOCK_PACKAGE.features.map((feature, index) => (
-              <View key={index} style={styles.featureItem}>
-                <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-                <Text style={styles.featureText}>{feature}</Text>
-              </View>
-            ))}
-          </View>
+          {packageData.features && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Quyền lợi</Text>
+              {getFeatures(packageData.features).map((feature, index) => (
+                <View key={index} style={styles.featureItem}>
+                  <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                  <Text style={styles.featureText}>{feature}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
-          {/* Delivery Info */}
+          {/* Duration Info */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Thời gian giao hàng</Text>
+            <Text style={styles.sectionTitle}>Thời hạn gói</Text>
             <View style={styles.infoRow}>
               <Ionicons name="time-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>{MOCK_PACKAGE.deliveryTime}</Text>
+              <Text style={styles.infoText}>
+                {packageData.duration_value} {packageData.duration_unit}
+              </Text>
             </View>
           </View>
 
@@ -125,29 +155,35 @@ export default function PackageDetailScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Đánh giá</Text>
-              <Pressable>
-                <Text style={styles.seeAllText}>Xem tất cả</Text>
-              </Pressable>
+              {reviews.length > 0 && (
+                <Pressable>
+                  <Text style={styles.seeAllText}>Xem tất cả</Text>
+                </Pressable>
+              )}
             </View>
-            {REVIEWS.map((review) => (
-              <View key={review.id} style={styles.reviewCard}>
-                <View style={styles.reviewHeader}>
-                  <Text style={styles.reviewUserName}>{review.userName}</Text>
-                  <Text style={styles.reviewDate}>{review.date}</Text>
+            {reviews.length === 0 ? (
+              <Text style={styles.noReviews}>Chưa có đánh giá nào</Text>
+            ) : (
+              reviews.map((review) => (
+                <View key={review.id} style={styles.reviewCard}>
+                  <View style={styles.reviewHeader}>
+                    <Text style={styles.reviewUserName}>{review.user.name}</Text>
+                    <Text style={styles.reviewDate}>{formatDate(review.createdAt)}</Text>
+                  </View>
+                  <View style={styles.reviewRating}>
+                    {[...Array(5)].map((_, i) => (
+                      <Ionicons
+                        key={i}
+                        name={i < review.rating ? "star" : "star-outline"}
+                        size={14}
+                        color="#FFC107"
+                      />
+                    ))}
+                  </View>
+                  <Text style={styles.reviewComment}>{review.comment}</Text>
                 </View>
-                <View style={styles.reviewRating}>
-                  {[...Array(5)].map((_, i) => (
-                    <Ionicons
-                      key={i}
-                      name={i < review.rating ? "star" : "star-outline"}
-                      size={14}
-                      color="#FFC107"
-                    />
-                  ))}
-                </View>
-                <Text style={styles.reviewComment}>{review.comment}</Text>
-              </View>
-            ))}
+              ))
+            )}
           </View>
         </View>
       </ScrollView>
@@ -157,12 +193,12 @@ export default function PackageDetailScreen() {
         <View style={styles.priceSection}>
           <Text style={styles.priceLabel}>Giá gói</Text>
           <Text style={styles.price}>
-            {formatPrice(MOCK_PACKAGE.price)}/tháng
+            {formatPrice(packageData.price)}/{packageData.duration_value} {packageData.duration_unit}
           </Text>
         </View>
         <Pressable
           style={styles.subscribeButton}
-          onPress={() => router.push("/checkout" as any)}
+          onPress={() => router.push(`/checkout?packageId=${packageData.id}` as any)}
         >
           <Text style={styles.subscribeButtonText}>Đăng ký ngay</Text>
         </Pressable>

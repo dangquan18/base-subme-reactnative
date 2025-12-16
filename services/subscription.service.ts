@@ -1,23 +1,22 @@
 import { apiClient } from "./api";
-import { Subscription, PaymentMethod } from "@/types";
+import { Subscription } from "@/types";
 
 interface CreateSubscriptionRequest {
-  packageId: string;
-  paymentMethodId: string;
-  duration: "weekly" | "monthly";
-  autoRenew: boolean;
+  plan_id: number;
+  payment_method: string;
+  auto_renew: boolean;
 }
 
 interface UpdateSubscriptionRequest {
-  autoRenew?: boolean;
-  paymentMethodId?: string;
+  auto_renew?: boolean;
 }
 
 export const subscriptionService = {
   // Get user subscriptions
-  async getUserSubscriptions(): Promise<Subscription[]> {
+  async getUserSubscriptions(status?: "active" | "expired" | "cancelled" | "pending_payment"): Promise<Subscription[]> {
     try {
-      const response = await apiClient.get<Subscription[]>("/subscriptions");
+      const params = status ? { status } : undefined;
+      const response = await apiClient.get<Subscription[]>("/subscriptions", { params });
       return response;
     } catch (error) {
       console.error("Get subscriptions error:", error);
@@ -26,11 +25,9 @@ export const subscriptionService = {
   },
 
   // Get subscription by ID
-  async getSubscriptionById(id: string): Promise<Subscription> {
+  async getSubscriptionById(id: number): Promise<Subscription> {
     try {
-      const response = await apiClient.get<Subscription>(
-        `/subscriptions/${id}`
-      );
+      const response = await apiClient.get<Subscription>(`/subscriptions/${id}`);
       return response;
     } catch (error) {
       console.error("Get subscription by ID error:", error);
@@ -39,11 +36,9 @@ export const subscriptionService = {
   },
 
   // Create subscription
-  async createSubscription(
-    data: CreateSubscriptionRequest
-  ): Promise<Subscription> {
+  async createSubscription(data: CreateSubscriptionRequest): Promise<{ success: boolean; message: string; subscription: any }> {
     try {
-      const response = await apiClient.post<Subscription>(
+      const response = await apiClient.post<{ success: boolean; message: string; subscription: any }>(
         "/subscriptions",
         data
       );
@@ -55,12 +50,9 @@ export const subscriptionService = {
   },
 
   // Update subscription
-  async updateSubscription(
-    id: string,
-    data: UpdateSubscriptionRequest
-  ): Promise<Subscription> {
+  async updateSubscription(id: number, data: UpdateSubscriptionRequest): Promise<{ success: boolean; subscription: Subscription }> {
     try {
-      const response = await apiClient.patch<Subscription>(
+      const response = await apiClient.patch<{ success: boolean; subscription: Subscription }>(
         `/subscriptions/${id}`,
         data
       );
@@ -72,9 +64,12 @@ export const subscriptionService = {
   },
 
   // Cancel subscription
-  async cancelSubscription(id: string): Promise<void> {
+  async cancelSubscription(id: number): Promise<{ success: boolean; subscription: Subscription }> {
     try {
-      await apiClient.delete(`/subscriptions/${id}`);
+      const response = await apiClient.delete<{ success: boolean; subscription: Subscription }>(
+        `/subscriptions/${id}`
+      );
+      return response;
     } catch (error) {
       console.error("Cancel subscription error:", error);
       throw error;
@@ -82,9 +77,9 @@ export const subscriptionService = {
   },
 
   // Pause subscription
-  async pauseSubscription(id: string): Promise<Subscription> {
+  async pauseSubscription(id: number): Promise<{ success: boolean; subscription: Subscription }> {
     try {
-      const response = await apiClient.post<Subscription>(
+      const response = await apiClient.post<{ success: boolean; subscription: Subscription }>(
         `/subscriptions/${id}/pause`
       );
       return response;
@@ -95,9 +90,9 @@ export const subscriptionService = {
   },
 
   // Resume subscription
-  async resumeSubscription(id: string): Promise<Subscription> {
+  async resumeSubscription(id: number): Promise<{ success: boolean; subscription: Subscription }> {
     try {
-      const response = await apiClient.post<Subscription>(
+      const response = await apiClient.post<{ success: boolean; subscription: Subscription }>(
         `/subscriptions/${id}/resume`
       );
       return response;
@@ -108,9 +103,9 @@ export const subscriptionService = {
   },
 
   // Renew subscription
-  async renewSubscription(id: string): Promise<Subscription> {
+  async renewSubscription(id: number): Promise<{ success: boolean; subscription: Subscription; payment: any }> {
     try {
-      const response = await apiClient.post<Subscription>(
+      const response = await apiClient.post<{ success: boolean; subscription: Subscription; payment: any }>(
         `/subscriptions/${id}/renew`
       );
       return response;
