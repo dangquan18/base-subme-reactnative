@@ -66,7 +66,7 @@ export default function VendorProfile() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${user?.access_token}`, 
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`, 
           },
           body: JSON.stringify({
             old_password: oldPassword,
