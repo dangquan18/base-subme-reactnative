@@ -14,6 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 
 interface MenuItem {
   icon: string;
@@ -27,23 +28,16 @@ export default function VendorProfile() {
 
   const [showStoreInfo, setShowStoreInfo] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSignOut = async () => {
-    Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Đăng xuất",
-        style: "destructive",
-        onPress: async () => {
-          await signOut();
-          router.replace("/(auth)/welcome");
-        },
-      },
-    ]);
+    await signOut();
+    setShowLogoutModal(false);
+    router.replace("/(auth)/welcome");
   };
 
   const handleChangePassword = async () => {
@@ -139,7 +133,6 @@ export default function VendorProfile() {
             <Image
               source={{
                 uri:
-                  user?.avatar ||
                   "https://ui-avatars.com/api/?name=" + user?.name,
               }}
               style={styles.avatar}
@@ -235,7 +228,7 @@ export default function VendorProfile() {
 
         {/* LOGOUT */}
         <View style={styles.section}>
-          <Pressable style={styles.logoutButton} onPress={handleSignOut}>
+          <Pressable style={styles.logoutButton} onPress={() => setShowLogoutModal(true)}>
             <Ionicons name="log-out-outline" size={22} color="#F44336" />
             <Text style={styles.logoutText}>Đăng xuất</Text>
           </Pressable>
@@ -243,6 +236,19 @@ export default function VendorProfile() {
 
         <Text style={styles.versionText}>Version 1.0.0</Text>
       </ScrollView>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        visible={showLogoutModal}
+        title="Đăng xuất"
+        message="Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?"
+        confirmText="Đăng xuất"
+        cancelText="Hủy"
+        type="danger"
+        icon="log-out-outline"
+        onConfirm={handleSignOut}
+        onCancel={() => setShowLogoutModal(false)}
+      />
 
       {/* CHANGE PASSWORD MODAL */}
       {showChangePassword && (

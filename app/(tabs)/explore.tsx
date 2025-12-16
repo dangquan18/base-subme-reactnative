@@ -229,9 +229,9 @@ export default function ExploreScreen() {
                 style={styles.packageCard}
                 onPress={() => router.push(`/package/${pkg.id}` as any)}
               >
-                {pkg.image ? (
+                {(pkg.imageUrl || pkg.image) ? (
                   <Image
-                    source={{ uri: pkg.image }}
+                    source={{ uri: pkg.imageUrl || pkg.image }}
                     style={styles.packageImage}
                     defaultSource={require("@/assets/images/partial-react-logo.png")}
                   />

@@ -87,9 +87,9 @@ export default function PackageDetailScreen() {
     <View style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Header Image */}
-        {packageData.image ? (
+        {(packageData.imageUrl || packageData.image) ? (
           <Image
-            source={{ uri: packageData.image }}
+            source={{ uri: packageData.imageUrl || packageData.image }}
             style={styles.headerImage}
             defaultSource={require("@/assets/images/partial-react-logo.png")}
           />
@@ -162,7 +162,7 @@ export default function PackageDetailScreen() {
               )}
             </View>
             {reviews.length === 0 ? (
-              <Text style={styles.noReviews}>Chưa có đánh giá nào</Text>
+              <Text >Chưa có đánh giá nào</Text>
             ) : (
               reviews.map((review) => (
                 <View key={review.id} style={styles.reviewCard}>
