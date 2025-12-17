@@ -7,6 +7,7 @@ import {
   Pressable,
   ScrollView,
   Alert,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,33 +22,71 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [role, setRole] = useState<"user" | "vendor">("user");
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
     if (!name || !email || !password || !confirmPassword) {
-      Alert.alert("Lỗi", "Vui lòng nhập đầy đủ thông tin bắt buộc");
+      if (Platform.OS === 'web') {
+        window.alert("Lỗi\n\nVui lòng nhập đầy đủ thông tin bắt buộc");
+      } else {
+        Alert.alert("Lỗi", "Vui lòng nhập đầy đủ thông tin bắt buộc");
+      }
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("Lỗi", "Mật khẩu không khớp");
+      if (Platform.OS === 'web') {
+        window.alert("Lỗi\n\nMật khẩu không khớp");
+      } else {
+        Alert.alert("Lỗi", "Mật khẩu không khớp");
+      }
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert("Lỗi", "Mật khẩu phải có ít nhất 6 ký tự");
+      if (Platform.OS === 'web') {
+        window.alert("Lỗi\n\nMật khẩu phải có ít nhất 6 ký tự");
+      } else {
+        Alert.alert("Lỗi", "Mật khẩu phải có ít nhất 6 ký tự");
+      }
       return;
     }
 
     setLoading(true);
     try {
-      await signUp(email, password, name, phone || undefined, address || undefined);
-      Alert.alert("Thành công", "Đăng ký tài khoản thành công! Vui lòng đăng nhập.", [
-        { text: "OK", onPress: () => router.replace("/(auth)/signin") }
-      ]);
+      console.log("📝 Starting signup with role:", role);
+      await signUp(email, password, name, role, phone || undefined, address || undefined);
+      console.log("✅ Signup successful!");
+      
+      const message = role === "vendor" 
+        ? "Đăng ký tài khoản vendor thành công! Tài khoản của bạn đang chờ xét duyệt trong 1-3 ngày. Vui lòng đăng nhập để kiểm tra trạng thái."
+        : "Đăng ký tài khoản thành công! Vui lòng đăng nhập.";
+      
+      console.log("📢 Showing success alert");
+      
+      // Use native alert for web, Alert for mobile
+      if (Platform.OS === 'web') {
+        window.alert(`Thành công\n\n${message}`);
+        console.log("🔄 Navigating to signin");
+        router.replace("/(auth)/signin");
+      } else {
+        Alert.alert("Thành công", message, [
+          { text: "OK", onPress: () => {
+            console.log("🔄 Navigating to signin");
+            router.replace("/(auth)/signin");
+          }}
+        ]);
+      }
     } catch (error: any) {
-      const message = error.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.";
-      Alert.alert("Lỗi", message);
+      console.error("❌ Signup error:", error);
+      const message = error.response?.data?.message || error.message || "Đăng ký thất bại. Vui lòng thử lại.";
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Lỗi\n\n${message}`);
+      } else {
+        Alert.alert("Lỗi", message);
+      }
     } finally {
       setLoading(false);
     }
@@ -67,6 +106,44 @@ export default function SignUpScreen() {
 
       {/* Form */}
       <View style={styles.form}>
+        {/* Role Selection */}
+        <View style={styles.roleContainer}>
+          <Text style={styles.roleLabel}>Đăng ký với vai trò:</Text>
+          <View style={styles.roleButtons}>
+            <Pressable
+              style={[styles.roleButton, role === "user" && styles.roleButtonActive]}
+              onPress={() => setRole("user")}
+            >
+              <Ionicons
+                name="person"
+                size={24}
+                color={role === "user" ? "#FFF" : "#667eea"}
+              />
+              <Text style={[styles.roleButtonText, role === "user" && styles.roleButtonTextActive]}>
+                Người dùng
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.roleButton, role === "vendor" && styles.roleButtonActive]}
+              onPress={() => setRole("vendor")}
+            >
+              <Ionicons
+                name="storefront"
+                size={24}
+                color={role === "vendor" ? "#FFF" : "#667eea"}
+              />
+              <Text style={[styles.roleButtonText, role === "vendor" && styles.roleButtonTextActive]}>
+                Nhà cung cấp
+              </Text>
+            </Pressable>
+          </View>
+          {role === "vendor" && (
+            <Text style={styles.roleNote}>
+              ⓘ Tài khoản vendor sẽ được xét duyệt trong 1-3 ngày
+            </Text>
+          )}
+        </View>
+
         <View style={styles.inputContainer}>
           <Ionicons
             name="person-outline"
@@ -292,5 +369,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#667eea",
     fontWeight: "600",
+  },
+  roleContainer: {
+    marginBottom: 24,
+  },
+  roleLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 12,
+  },
+  roleButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  roleButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#667eea",
+    backgroundColor: "#FFF",
+  },
+  roleButtonActive: {
+    backgroundColor: "#667eea",
+    borderColor: "#667eea",
+  },
+  roleButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#667eea",
+  },
+  roleButtonTextActive: {
+    color: "#FFF",
+  },
+  roleNote: {
+    fontSize: 13,
+    color: "#FF9800",
+    marginTop: 8,
+    fontStyle: "italic",
   },
 });

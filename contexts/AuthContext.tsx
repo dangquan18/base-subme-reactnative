@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { authService } = await import("@/services/auth.service");
       const user = await authService.signIn(email, password);
       setUser(user);
-      return user.role as "customer" | "vendor";
+      return user.role as "user" | "vendor";
     } catch (error) {
       throw error;
     }
@@ -63,21 +63,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     email: string,
     password: string,
     name: string,
+    role: "user" | "vendor",
     phone?: string,
     address?: string,
     date_of_birth?: string
   ) => {
     try {
       const { authService } = await import("@/services/auth.service");
-      const user = await authService.signUp({
+      await authService.signUp({
         email,
         password,
         name,
+        role,
         phone,
         address,
         date_of_birth,
       });
-      setUser(user);
+      // Don't set user here - let them sign in manually after registration
     } catch (error) {
       throw error;
     }
@@ -108,6 +110,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const reloadUser = async () => {
+    try {
+      const { tokenManager } = await import("@/utils/storage");
+      const userData = await tokenManager.getUser();
+      if (userData) {
+        setUser(userData);
+        console.log("✅ User reloaded:", userData.status);
+      }
+    } catch (error) {
+      console.error("Failed to reload user:", error);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -117,6 +132,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signUp,
         signOut,
         updateProfile,
+        reloadUser,
       }}
     >
       {children}

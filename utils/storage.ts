@@ -7,7 +7,7 @@ const storage = {
   async setItem(key: string, value: string): Promise<void> {
     try {
       if (Platform.OS === 'web' && typeof window !== "undefined") {
-        localStorage.setItem(key, value);
+        AsyncStorage.setItem(key, value);
       } else {
         await AsyncStorage.setItem(key, value);
       }

@@ -62,6 +62,18 @@ interface VendorReviewsResponse {
   limit: number;
 }
 
+interface VendorInfo {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  status: "pending" | "active" | "approved" | "rejected";
+  phone?: string;
+  address?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface CreatePackageRequest {
   name: string;
   description: string;
@@ -74,6 +86,17 @@ interface CreatePackageRequest {
 }
 
 export const vendorService = {
+  // Get vendor info (including status)
+  async getVendorInfo(): Promise<VendorInfo> {
+    try {
+      const response = await apiClient.get<VendorInfo>("/vendor/info");
+      return response;
+    } catch (error) {
+      console.error("Get vendor info error:", error);
+      throw error;
+    }
+  },
+
   // Get vendor dashboard stats
   async getStats(): Promise<VendorStats> {
     try {

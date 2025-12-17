@@ -3,7 +3,8 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: "customer" | "vendor";
+  role: "user" | "vendor";
+  status?: "pending" | "active" | "approved" | "rejected";
   phone?: string;
   address?: string;
   date_of_birth?: string;
@@ -14,11 +15,10 @@ export interface User {
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<"customer" | "vendor">;
-  signUp: (email: string, password: string, name: string, phone?: string, address?: string, date_of_birth?: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<"user" | "vendor">;
+  signUp: (email: string, password: string, name: string, role: "user " | "vendor", phone?: string, address?: string, date_of_birth?: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (data: Partial<User>) => Promise<void>;
-}
+  updateProfile: (data: Partial<User>) => Promise<void>;  reloadUser: () => Promise<void>;}
 
 // Category Types
 export interface Category {

@@ -16,6 +16,7 @@ interface RegisterRequest {
   name: string;
   email: string;
   password: string;
+  role: "user" | "vendor";
   phone?: string;
   address?: string;
   date_of_birth?: string;
@@ -61,24 +62,19 @@ export const authService = {
   },
 
   // Sign up (Register)
-  async signUp(data: RegisterRequest): Promise<User> {
+  async signUp(data: RegisterRequest): Promise<void> {
     try {
-      console.log("📝 Attempting registration with:", data.email);
+      console.log("📝 Attempting registration with:", data.email, "role:", data.role);
       const response = await apiClient.post<any>("/auth/register", data);
-      console.log("✅ Registration response received");
+      console.log("✅ Registration response received:", response);
 
-      if (!response.success) {
+      // Check if response indicates failure
+      if (response.success === false) {
         throw new Error(response.message || "Registration failed");
       }
 
-      // Save tokens
-      await tokenManager.setToken(response.access_token);
-      await tokenManager.setRefreshToken(response.refresh_token);
-
-      // Save user data
-      await tokenManager.setUser(response.user);
-
-      return response.user;
+      // Don't save tokens or user data - let user sign in manually
+      console.log("✅ Registration successful. User needs to sign in.");
     } catch (error: any) {
       console.error("❌ Sign up error:", error);
       console.error("Error details:", {
