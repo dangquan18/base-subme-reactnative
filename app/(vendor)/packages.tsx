@@ -1,8 +1,7 @@
 import { AppTheme } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
-// Lưu ý: React Native thuần không có localStorage, hãy dùng AsyncStorage nếu chạy trên mobile thật.
-// Ở đây tôi giữ nguyên localStorage theo code cũ của bạn vì có thể bạn đang chạy web hoặc có shim.
 import { Picker } from "@react-native-picker/picker";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -137,22 +136,55 @@ export default function VendorPackages() {
   const fetchPackages = async () => {
     try {
       setLoading(true);
-      // Gọi API thật để lấy danh sách gói
-      // Lấy token từ localStorage (hoặc AsyncStorage tùy môi trường)
-      const token = localStorage.getItem("auth_token");
+      // Lấy token từ AsyncStorage
+      const token = await AsyncStorage.getItem("auth_token");
+
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      };
 
       const res = await fetch("http://localhost:3000/vendor/packages", {
         method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`, // Đã gắn Bearer Token
-        }
+        headers: headers,
       });
       
       if (!res.ok) throw new Error("Failed to fetch");
       
-      const data = await res.json();
-      setPackages(data); // data format giống như bạn cung cấp
+      let packagesData = await res.json();
+      
+      // Fetch orders để sync subscriber_count
+      try {
+        const ordersRes = await fetch("http://localhost:3000/vendor/orders", {
+          method: "GET",
+          headers: headers,
+        });
+        
+        if (ordersRes.ok) {
+          const ordersData = await ordersRes.json();
+          const orders = ordersData.orders || [];
+          
+          // Đếm subscriber cho từng package (chỉ active)
+          const subscriberCountByPackage: { [key: number]: number } = {};
+          orders.forEach((order: any) => {
+            if (order.status === 'active' && order.plan_id) {
+              subscriberCountByPackage[order.plan_id] = (subscriberCountByPackage[order.plan_id] || 0) + 1;
+            }
+          });
+          
+          // Sync subscriber_count vào packages
+          packagesData = packagesData.map((pkg: any) => ({
+            ...pkg,
+            subscriber_count: subscriberCountByPackage[pkg.id] || 0,
+          }));
+          
+          console.log("Packages subscriber counts synced:", subscriberCountByPackage);
+        }
+      } catch (orderErr) {
+        console.log("Không thể sync subscriber count:", orderErr);
+      }
+      
+      setPackages(packagesData);
     } catch (error) {
       Alert.alert("Lỗi", "Không tải được danh sách gói dịch vụ");
     } finally {
@@ -219,7 +251,7 @@ export default function VendorPackages() {
     };
 
     try {
-      const token = localStorage.getItem("auth_token");
+      const token = await AsyncStorage.getItem("auth_token");
       const res = await fetch("http://localhost:3000/vendor/packages", {
         method: "POST",
         headers: {
@@ -268,7 +300,7 @@ export default function VendorPackages() {
 
   // Render từng Card gói dịch vụ
   const renderPackageItem = (item: VendorPackage) => (
-    <TouchableOpacity key={item.id} style={styles.card} onPress={() => router.push(`/package/${item.id}`)}>
+    <TouchableOpacity key={item.id} style={styles.card} onPress={() => router.push(`/vendor-package/${item.id}`)}>
         {/* Header Card: Tên + Status */}
         <View style={styles.cardHeader}>
             <View style={{flex: 1}}>

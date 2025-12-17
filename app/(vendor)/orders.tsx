@@ -15,9 +15,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-
-// LƯU Ý: Nếu chạy trên Mobile thật (Android/iOS), hãy đổi localStorage thành AsyncStorage
-// import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get("window");
 
@@ -110,8 +108,7 @@ export default function VendorOrders() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      // Lấy token (Lưu ý: localStorage chỉ chạy trên web, mobile cần AsyncStorage)
-      const token = localStorage.getItem("auth_token");
+      const token = await AsyncStorage.getItem("auth_token");
       
       const res = await fetch("http://localhost:3000/vendor/orders", {
         method: "GET",
@@ -169,7 +166,7 @@ export default function VendorOrders() {
   // --- ACTIONS (Duyệt/Hủy đơn) ---
   const handleUpdateStatus = async (orderId: number, newStatus: string) => {
     try {
-        const token = localStorage.getItem("auth_token");
+        const token = await AsyncStorage.getItem("auth_token");
         const res = await fetch(`http://localhost:3000/vendor/orders/${orderId}/status`, {
             method: 'PATCH',
             headers: {

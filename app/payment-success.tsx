@@ -32,8 +32,19 @@ export default function PaymentSuccessScreen() {
       const status = params.status as string;
       
       if (status === 'success') {
-        // Payment successful
-        setPaymentData({ success: true });
+        // Payment successful - use params data
+        setPaymentData({
+          success: true,
+          amount: Number(params.amount) || 0,
+          created_at: new Date().toISOString(),
+          id: params.subscriptionId || Date.now().toString().slice(-8),
+          status: 'success',
+          subscription: {
+            package: {
+              name: params.packageName || 'N/A'
+            }
+          }
+        });
         
         // Start success animation
         scale.value = withSpring(1, { damping: 10 });
@@ -130,7 +141,7 @@ export default function PaymentSuccessScreen() {
             <Ionicons name="card-outline" size={24} color="#667eea" />
             <Text style={styles.infoLabel}>Số tiền</Text>
             <Text style={styles.infoValue}>
-              {paymentData ? formatPrice(paymentData.amount) : '0 đ'}
+              {params.amount ? formatPrice(Number(params.amount)) : (paymentData ? formatPrice(paymentData.amount) : '0 đ')}
             </Text>
           </View>
         </View>
@@ -140,19 +151,19 @@ export default function PaymentSuccessScreen() {
           <View style={styles.receiptRow}>
             <Text style={styles.receiptLabel}>Mã giao dịch</Text>
             <Text style={styles.receiptValue}>
-              #{paymentData?.id || Date.now().toString().slice(-8)}
+              #{params.subscriptionId || (paymentData?.id || Date.now().toString().slice(-8))}
             </Text>
           </View>
           <View style={styles.receiptRow}>
             <Text style={styles.receiptLabel}>Gói dịch vụ</Text>
             <Text style={styles.receiptValue}>
-              {paymentData?.subscription?.package?.name || 'N/A'}
+              {params.packageName || (paymentData?.subscription?.package?.name || 'N/A')}
             </Text>
           </View>
           <View style={styles.receiptRow}>
             <Text style={styles.receiptLabel}>Trạng thái</Text>
             <Text style={[styles.receiptValue, { color: '#4CAF50' }]}>
-              {paymentData?.status === 'success' ? 'Thành công' : 'Đang xử lý'}
+              Đã thanh toán
             </Text>
           </View>
         </View>

@@ -14,7 +14,9 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = (width - 48) / 2;
@@ -72,7 +74,7 @@ export default function VendorDashboard() {
     try {
       setLoading(true);
       
-      const token = localStorage.getItem("auth_token"); 
+      const token = await AsyncStorage.getItem("auth_token"); 
 
       if (!token) {
         Alert.alert("Lỗi", "Vui lòng đăng nhập lại (Thiếu Token)");
@@ -91,9 +93,11 @@ export default function VendorDashboard() {
         headers: headers,
       });
 
+      let statsData: any = null;
+      
       if (resStats.ok) {
-        const statsData = await resStats.json();
-        setStats(statsData);
+        statsData = await resStats.json();
+        console.log("=== STATS DATA ===", JSON.stringify(statsData, null, 2));
       } else {
         console.log("Lỗi fetch stats:", resStats.status);
       }
@@ -107,12 +111,54 @@ export default function VendorDashboard() {
 
         if (resOrders.ok) {
           const ordersData = await resOrders.json();
-          setRecentOrders([]); 
+          console.log("=== ORDERS DATA ===", JSON.stringify(ordersData, null, 2));
+          
+          const orders = ordersData.orders || [];
+          
+          // Tính số subscriber thực tế từ orders (chỉ đếm active)
+          const subscriberCountByPackage: { [key: number]: number } = {};
+          orders.forEach((order: any) => {
+            if (order.status === 'active' && order.plan_id) {
+              subscriberCountByPackage[order.plan_id] = (subscriberCountByPackage[order.plan_id] || 0) + 1;
+            }
+          });
+          
+          // Sync subscriber_count vào topPackages
+          if (statsData?.topPackages) {
+            statsData.topPackages = statsData.topPackages.map((pkg: any) => ({
+              ...pkg,
+              subscriber_count: subscriberCountByPackage[pkg.id] || 0,
+            }));
+          }
+          
+          // Update activeSubscribers tổng
+          if (statsData) {
+            const totalActiveSubscribers = Object.values(subscriberCountByPackage).reduce((sum: number, count: any) => sum + count, 0);
+            statsData.activeSubscribers = totalActiveSubscribers;
+          }
+          
+          console.log("Subscriber counts synced:", subscriberCountByPackage);
+          setStats(statsData);
+          
+          // Lấy 5 đơn hàng mới nhất
+          const recentData = orders.slice(0, 5).map((order: any) => ({
+            id: order.id,
+            customerName: order.user?.name || "Khách hàng",
+            packageName: order.plan?.name || "Gói dịch vụ",
+            amount: order.plan?.price || "0",
+            status: order.status,
+            createdAt: order.payments?.[0]?.createdAt || order.start_date || new Date().toISOString(),
+          }));
+          console.log("Recent orders mapped:", recentData.length);
+          setRecentOrders(recentData); 
         } else {
+          console.log("Lỗi fetch orders:", resOrders.status);
+          setStats(statsData); // Vẫn set stats nếu orders fail
           setRecentOrders([]);
         }
       } catch (orderErr) {
         console.log("API Order đang lỗi, bỏ qua:", orderErr);
+        setStats(statsData); // Vẫn set stats nếu orders fail
         setRecentOrders([]);
       }
 
@@ -179,7 +225,8 @@ export default function VendorDashboard() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={{color: '#666'}}>Đang tải dữ liệu...</Text>
+        <ActivityIndicator size="large" color={AppTheme.colors.primary} />
+        <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
       </View>
     );
   }
@@ -189,30 +236,35 @@ export default function VendorDashboard() {
       <StatusBar barStyle="light-content" />
       
       {/* HEADER SECTION */}
-      <View style={styles.headerWrapper}>
-        <LinearGradient
-            colors={[AppTheme.colors.primary, '#576aa4ff']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.header}
-        >
-            <View style={styles.headerContent}>
-                <View>
-                    <Text style={styles.headerTitle}>Vendor Portal</Text>
-                    {/* <Text style={styles.headerSubtitle}>Tổng quan kinh doanh</Text> */}
-                </View>
-                <View style={styles.avatarContainer}>
-                    <Ionicons name="storefront" size={20} color="#FFF" />
-                </View>
-            </View>
-        </LinearGradient>
-        
-        {/* REVENUE CARD (Floating) */}
-        <View style={styles.revenueContainer}>
+      <LinearGradient
+          colors={[AppTheme.colors.primary, '#576aa4ff']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+      >
+          <View style={styles.headerContent}>
+              <View>
+                  <Text style={styles.headerTitle}>Vendor Portal</Text>
+              </View>
+              <View style={styles.avatarContainer}>
+                  <Ionicons name="storefront" size={20} color="#FFF" />
+              </View>
+          </View>
+      </LinearGradient>
+
+      <ScrollView
+        style={styles.scrollContent}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.bodyContent}>
+            
+            {/* REVENUE CARD */}
             <View style={styles.revenueCard}>
                 <View style={styles.revenueRow}>
                     <View>
-                        <Text style={styles.revenueLabel}>Tổng doanh thu</Text>
+                        <Text style={styles.revenueLabel}>TỔNG DOANH THU</Text>
                         <Text style={styles.revenueValue}>
                             {stats ? formatCurrency(stats.totalRevenue) : "0 ₫"}
                         </Text>
@@ -227,16 +279,6 @@ export default function VendorDashboard() {
                     <Text style={styles.revenueSubtext}>Cập nhật theo thời gian thực</Text>
                 </View>
             </View>
-        </View>
-      </View>
-
-      <ScrollView
-        style={styles.scrollContent}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.bodyContent}>
             
             {/* STATS GRID */}
             <View style={styles.sectionHeader}>
@@ -389,14 +431,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#F5F6FA",
   },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#666",
+    fontWeight: "500",
+  },
   
   /* HEADER */
-  headerWrapper: {
-    marginBottom: 60,
-  },
   header: {
     paddingTop: Platform.OS === 'ios' ? 60 : 50,
-    paddingBottom: 80,
+    paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
@@ -428,22 +473,16 @@ const styles = StyleSheet.create({
   },
 
   /* REVENUE CARD */
-  revenueContainer: {
-    position: "absolute",
-    bottom: -50,
-    left: 20,
-    right: 20,
-    zIndex: 10,
-  },
   revenueCard: {
     backgroundColor: "#FFF",
     borderRadius: 20,
     padding: 20,
+    marginBottom: 24,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 4,
   },
   revenueRow: {
     flexDirection: "row",
@@ -496,7 +535,7 @@ const styles = StyleSheet.create({
   },
   bodyContent: {
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 20,
   },
   sectionHeader: {
     flexDirection: "row",

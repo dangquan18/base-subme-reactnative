@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface MenuItem {
   icon: string;
@@ -54,13 +55,14 @@ export default function VendorProfile() {
     try {
       setLoading(true);
 
+      const token = await AsyncStorage.getItem("auth_token");
       const res = await fetch(
         "http://localhost:3000/auth/change-password",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("access_token")}`, 
+            Authorization: `Bearer ${token}`, 
           },
           body: JSON.stringify({
             old_password: oldPassword,

@@ -25,10 +25,20 @@ export default function CheckoutScreen() {
   const [processing, setProcessing] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState("VNPay");
   const [autoRenew, setAutoRenew] = useState(true);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadPackage();
   }, [packageId]);
+
+  // Cleanup polling interval on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
 
   const loadPackage = async () => {
     try {
@@ -54,6 +64,68 @@ export default function CheckoutScreen() {
       style: "currency",
       currency: "VND",
     }).format(price);
+  };
+
+  const pollPaymentStatus = async (subscriptionId: number, packageName: string, amount: number) => {
+    let pollCount = 0;
+    const maxPolls = 300; // 5 minutes maximum (300 seconds)
+
+    const interval = setInterval(async () => {
+      try {
+        pollCount++;
+        
+        // Check subscription status
+        const subscription = await subscriptionService.getSubscriptionById(subscriptionId);
+        
+        console.log(`Polling payment status (${pollCount}/${maxPolls}):`, subscription.status);
+
+        if (subscription.status === 'active') {
+          // Payment successful!
+          clearInterval(interval);
+          setPollingInterval(null);
+          setProcessing(false);
+
+          router.replace({
+            pathname: "/payment-success",
+            params: {
+              status: "success",
+              subscriptionId: subscriptionId.toString(),
+              amount: amount.toString(),
+              packageName: packageName,
+            },
+          });
+        } else if (subscription.status === 'cancelled' || subscription.status === 'expired') {
+          // Payment failed or cancelled
+          clearInterval(interval);
+          setPollingInterval(null);
+          setProcessing(false);
+          
+          Alert.alert(
+            "Thanh toán thất bại",
+            "Giao dịch đã bị hủy hoặc thất bại. Vui lòng thử lại.",
+            [{ text: "OK", onPress: () => router.back() }]
+          );
+        }
+
+        // Stop polling after max attempts
+        if (pollCount >= maxPolls) {
+          clearInterval(interval);
+          setPollingInterval(null);
+          setProcessing(false);
+          
+          Alert.alert(
+            "Hết thời gian chờ",
+            "Không nhận được kết quả thanh toán. Vui lòng kiểm tra lại trong mục đăng ký của bạn.",
+            [{ text: "OK", onPress: () => router.replace("/(tabs)/subscriptions") }]
+          );
+        }
+      } catch (error) {
+        console.error("Error polling payment status:", error);
+        // Continue polling even if there's an error
+      }
+    }, 1000); // Poll every 1 second
+
+    setPollingInterval(interval);
   };
 
   const handlePayment = async () => {
@@ -86,15 +158,18 @@ export default function CheckoutScreen() {
         const supported = await Linking.canOpenURL(paymentResult.payment_url);
         if (supported) {
           await Linking.openURL(paymentResult.payment_url);
+          
+          // Start polling for payment status
+          pollPaymentStatus(
+            subscriptionResult.subscription.id,
+            packageData.name,
+            Number(packageData.price)
+          );
+
           Alert.alert(
             "Thanh toán",
-            "Vui lòng hoàn tất thanh toán trên trang VNPay",
-            [
-              {
-                text: "OK",
-                onPress: () => router.replace("/(tabs)/subscriptions"),
-              },
-            ]
+            "Vui lòng hoàn tất thanh toán trên trang VNPay. Hệ thống sẽ tự động cập nhật khi thanh toán thành công.",
+            [{ text: "OK" }]
           );
         } else {
           throw new Error("Không thể mở link thanh toán");
@@ -104,12 +179,22 @@ export default function CheckoutScreen() {
       }
     } catch (error: any) {
       console.error("Payment error:", error);
+      
+      // Clear polling if there's an error
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        setPollingInterval(null);
+      }
+
       Alert.alert(
         "Lỗi thanh toán",
         error.response?.data?.message || error.message || "Không thể xử lý thanh toán"
       );
     } finally {
-      setProcessing(false);
+      // Don't set processing to false here, let polling handle it
+      if (!pollingInterval) {
+        setProcessing(false);
+      }
     }
   };
 
