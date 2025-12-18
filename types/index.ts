@@ -16,9 +16,11 @@ export interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<"user" | "vendor" | "admin">;
-  signUp: (email: string, password: string, name: string, role: "user " | "vendor", phone?: string, address?: string, date_of_birth?: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, role: "user" | "vendor", phone?: string, address?: string, date_of_birth?: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (data: Partial<User>) => Promise<void>;  reloadUser: () => Promise<void>;}
+  updateProfile: (data: Partial<User>) => Promise<void>;
+  reloadUser: () => Promise<void>;
+}
 
 // Category Types
 export interface Category {

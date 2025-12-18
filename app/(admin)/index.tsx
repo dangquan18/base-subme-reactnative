@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   Alert,
   Pressable,
@@ -10,27 +10,19 @@ import {
   Text,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { AppTheme } from "@/constants/theme";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 
 export default function AdminScreen() {
   const router = useRouter();
   const { signOut, user } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleSignOut = async () => {
-    Alert.alert(
-      "Đăng xuất",
-      "Bạn có chắc chắn muốn đăng xuất?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Đăng xuất",
-          style: "destructive",
-          onPress: async () => {
-            await signOut();
-            router.replace("/(auth)/welcome");
-          },
-        },
-      ]
-    );
+    await signOut();
+    setShowLogoutModal(false);
+    router.replace("/(auth)/welcome");
   };
 
   const adminMenuItems = [
@@ -85,153 +77,186 @@ export default function AdminScreen() {
   ];
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={styles.container}>
+      {/* Header với Gradient */}
+      <LinearGradient
+        colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
+        style={styles.header}
+      >
         <View style={styles.headerContent}>
-          <Ionicons name="shield-checkmark" size={32} color="#667eea" />
+          <View style={styles.iconCircle}>
+            <Ionicons name="shield-checkmark" size={40} color="#FFF" />
+          </View>
           <View style={styles.headerText}>
-            <Text style={styles.welcome}>Chào mừng Admin</Text>
+            <Text style={styles.welcome}>Admin Dashboard</Text>
             <Text style={styles.userName}>{user?.name}</Text>
             <Text style={styles.userEmail}>{user?.email}</Text>
           </View>
         </View>
-      </View>
-
-      {/* Menu Grid */}
-      <View style={styles.menuContainer}>
-        <Text style={styles.sectionTitle}>Quản lý hệ thống</Text>
-        <View style={styles.menuGrid}>
-          {adminMenuItems.map((item, index) => (
-            <Pressable
-              key={index}
-              style={styles.menuItem}
-              onPress={item.onPress}
-            >
-              <View style={styles.menuIcon}>
-                <Ionicons name={item.icon as any} size={24} color="#667eea" />
-              </View>
-              <Text style={styles.menuTitle}>{item.title}</Text>
-              <Text style={styles.menuDescription}>{item.description}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-
-      {/* Sign Out Button */}
-      <View style={styles.footer}>
-        <Pressable style={styles.signOutButton} onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={20} color="#fff" />
-          <Text style={styles.signOutText}>Đăng xuất</Text>
+        
+        {/* Logout Button in Header */}
+        <Pressable style={styles.logoutButton} onPress={() => setShowLogoutModal(true)}>
+          <Ionicons name="log-out-outline" size={20} color="#FFF" />
+          <Text style={styles.logoutText}>Đăng xuất</Text>
         </Pressable>
-      </View>
-    </ScrollView>
+      </LinearGradient>
+
+      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Menu Grid */}
+        <View style={styles.menuContainer}>
+          <Text style={styles.sectionTitle}>Quản lý hệ thống</Text>
+          <View style={styles.menuGrid}>
+            {adminMenuItems.map((item, index) => (
+              <Pressable
+                key={index}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  pressed && styles.menuItemPressed
+                ]}
+                onPress={item.onPress}
+              >
+                <View style={styles.menuIcon}>
+                  <Ionicons name={item.icon as any} size={32} color="#667eea" />
+                </View>
+                <Text style={styles.menuTitle}>{item.title}</Text>
+                <Text style={styles.menuDescription}>{item.description}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        visible={showLogoutModal}
+        title="Đăng xuất"
+        message="Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?"
+        confirmText="Đăng xuất"
+        cancelText="Hủy"
+        type="danger"
+        icon="log-out-outline"
+        onConfirm={handleSignOut}
+        onCancel={() => setShowLogoutModal(false)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#F5F6FA",
   },
   header: {
-    backgroundColor: "#fff",
-    padding: 20,
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    paddingTop: 60,
+    paddingBottom: 30,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 16,
+  },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerText: {
-    marginLeft: 15,
+    marginLeft: 16,
+    flex: 1,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: "flex-start",
+    gap: 6,
+  },
+  logoutText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  scrollContent: {
     flex: 1,
   },
   welcome: {
     fontSize: 16,
-    color: "#666",
+    color: "#FFF",
+    opacity: 0.9,
     marginBottom: 4,
   },
   userName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 2,
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#FFF",
   },
   userEmail: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 13,
+    color: "#FFF",
+    opacity: 0.8,
+    marginTop: 2,
   },
   menuContainer: {
-    padding: 20,
+    padding: 24,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#333",
-    marginBottom: 15,
+    marginBottom: 16,
   },
   menuGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    gap: 16,
   },
   menuItem: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    flex: 1,
+    minWidth: "45%",
+    backgroundColor: "#FFF",
+    borderRadius: 16,
     padding: 20,
-    marginBottom: 15,
-    width: "48%",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  menuItemPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
   },
   menuIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#f0f4ff",
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#F0F2FF",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   menuTitle: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: "#333",
     textAlign: "center",
-    marginBottom: 5,
+    marginBottom: 6,
   },
   menuDescription: {
     fontSize: 12,
     color: "#666",
     textAlign: "center",
     lineHeight: 16,
-  },
-  footer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  signOutButton: {
-    backgroundColor: "#ff4444",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 15,
-    borderRadius: 12,
-    gap: 10,
-  },
-  signOutText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
   },
 });

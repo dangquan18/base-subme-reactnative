@@ -7,18 +7,22 @@ import {
     FlatList,
     Pressable,
     RefreshControl,
-    SafeAreaView,
-    StatusBar,
     StyleSheet,
     Text,
-    View
+    View,
+    TouchableOpacity,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { AppTheme } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ⚠️ Android Emulator: dùng 10.0.2.2 thay vì localhost
 const API_URL = 'http://localhost:3000/packages/admin/all';
 
 const AdminPackagesScreen = () => {
   const router = useRouter();
+  const { signOut } = useAuth();
 
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +75,24 @@ const AdminPackagesScreen = () => {
     setRefreshing(true);
     fetchPackages();
   }, []);
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      "Đăng xuất",
+      "Bạn có chắc chắn muốn đăng xuất?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Đăng xuất",
+          style: "destructive",
+          onPress: async () => {
+            await signOut();
+            router.replace("/(auth)/welcome");
+          },
+        },
+      ]
+    );
+  };
 
   // ===== STATUS BADGE =====
   const StatusBadge = ({ status }: { status: string }) => {
@@ -164,15 +186,27 @@ const AdminPackagesScreen = () => {
 
   // ===== RENDER =====
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Các gói đã đăng bán</Text>
-        <Text style={styles.headerSubtitle}>
-          Tổng cộng: {plans.length} gói
-        </Text>
-      </View>
+    <View style={styles.container}>
+      {/* Header với Gradient */}
+      <LinearGradient
+        colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
+        style={styles.header}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>Quản lý Gói dịch vụ</Text>
+            <Text style={styles.headerSubtitle}>
+              Tổng cộng: {plans.length} gói
+            </Text>
+          </View>
+          <TouchableOpacity onPress={handleSignOut} style={styles.logoutBtn}>
+            <Ionicons name="log-out-outline" size={24} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
 
       {loading ? (
         <View style={styles.center}>
@@ -195,7 +229,7 @@ const AdminPackagesScreen = () => {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -203,21 +237,61 @@ export default AdminPackagesScreen;
 
 // ===== STYLES =====
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-
-  header: {
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  container: { 
+    flex: 1, 
+    backgroundColor: '#F5F6FA' 
   },
-  headerTitle: { fontSize: 22, fontWeight: 'bold' },
-  headerSubtitle: { marginTop: 4, color: '#666' },
-
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-  listContent: { padding: 16 },
-
+  header: {
+    paddingTop: 60,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#FFF',
+    opacity: 0.9,
+    marginTop: 4,
+  },
+  center: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  listContent: { 
+    padding: 16 
+  },
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -225,38 +299,63 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     elevation: 3,
   },
-
-  imageContainer: { height: 150 },
-  cardImage: { width: '100%', height: '100%' },
-
-  statusContainer: { position: 'absolute', top: 10, right: 10 },
-
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  badgeText: { fontSize: 12, fontWeight: '600' },
-
-  cardContent: { padding: 16 },
-
+  badge: { 
+    paddingHorizontal: 8, 
+    paddingVertical: 4, 
+    borderRadius: 6 
+  },
+  badgeText: { 
+    fontSize: 12, 
+    fontWeight: '600' 
+  },
+  cardContent: { 
+    padding: 16 
+  },
   rowBetween: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 6,
   },
-
-  categoryText: { fontSize: 12, color: '#007bff', fontWeight: '600' },
-
-  ratingContainer: { flexDirection: 'row', alignItems: 'center' },
-  starIcon: { marginRight: 4 },
-  ratingText: { fontWeight: 'bold' },
-
-  title: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
-
-  vendorText: { fontSize: 13, color: '#777' },
-  vendorName: { fontWeight: '600', color: '#333' },
-
-  description: { marginVertical: 8, color: '#666' },
-
-  divider: { height: 1, backgroundColor: '#eee', marginVertical: 8 },
-
-  price: { fontSize: 18, fontWeight: 'bold', color: '#d32f2f' },
-  unit: { fontSize: 14, color: '#777' },
+  categoryText: { 
+    fontSize: 12, 
+    color: '#007bff', 
+    fontWeight: '600' 
+  },
+  statusContainer: {
+    marginLeft: 8,
+  },
+  title: { 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    marginBottom: 4,
+    marginTop: 8,
+  },
+  vendorText: { 
+    fontSize: 13, 
+    color: '#777',
+    marginBottom: 8,
+  },
+  vendorName: { 
+    fontWeight: '600', 
+    color: '#333' 
+  },
+  description: { 
+    marginVertical: 8, 
+    color: '#666',
+    lineHeight: 20,
+  },
+  divider: { 
+    height: 1, 
+    backgroundColor: '#eee', 
+    marginVertical: 8 
+  },
+  price: { 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    color: '#d32f2f' 
+  },
+  unit: { 
+    fontSize: 14, 
+    color: '#777' 
+  },
 });

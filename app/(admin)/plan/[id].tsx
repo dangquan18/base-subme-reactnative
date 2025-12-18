@@ -9,13 +9,16 @@ import {
     Modal,
     Platform,
     ScrollView,
-    StatusBar,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { AppTheme } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
 
 // CẤU HÌNH API
 // Lưu ý: Nếu chạy Android Emulator hãy đổi localhost thành 10.0.2.2
@@ -24,6 +27,7 @@ const BASE_URL = 'http://localhost:3000';
 export default function PackageDetailScreen() {
   const { id } = useLocalSearchParams(); // Lấy ID từ URL
   const router = useRouter();
+  const { signOut } = useAuth();
 
   // State quản lý dữ liệu và giao diện
   const [plan, setPlan] = useState<any>(null);
@@ -149,14 +153,45 @@ export default function PackageDetailScreen() {
 
   const isPending = plan.status === 'pending';
 
+  const handleSignOut = async () => {
+    Alert.alert(
+      "Đăng xuất",
+      "Bạn có chắc chắn muốn đăng xuất?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Đăng xuất",
+          style: "destructive",
+          onPress: async () => {
+            await signOut();
+            router.replace("/(auth)/welcome");
+          },
+        },
+      ]
+    );
+  };
+
   return (
-    <>
-      <Stack.Screen options={{ title: 'Chi tiết gói dịch vụ', headerBackTitle: 'Back' }} />
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
       
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" />
+      {/* Header với Gradient */}
+      <LinearGradient
+        colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
+        style={styles.header}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>Chi tiết gói</Text>
+          <TouchableOpacity onPress={handleSignOut} style={styles.logoutBtn}>
+            <Ionicons name="log-out-outline" size={24} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
         
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* HEADER IMAGE */}
           <Image 
             source={{ uri: plan.imageUrl || 'https://placehold.co/600x400?text=No-image' }} 
@@ -240,7 +275,6 @@ export default function PackageDetailScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </View>
 
       {/* MODAL APPROVE */}
       <Modal
@@ -290,7 +324,7 @@ export default function PackageDetailScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </>
+    </View>
   );
 }
 
@@ -298,7 +332,42 @@ export default function PackageDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#F5F6FA',
+  },
+  header: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFF',
+    maxWidth: '60%',
+    textAlign: 'center',
   },
   centerContainer: {
     flex: 1,

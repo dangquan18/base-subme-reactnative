@@ -22,7 +22,7 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [role, setRole] = useState<"vendor" | "user ">("user ");
+  const [role, setRole] = useState<"vendor" | "user">("user");
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {

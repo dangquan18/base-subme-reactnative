@@ -235,7 +235,7 @@ export default function SubscriptionDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await subscriptionService.cancelSubscription(String(id));
+              await subscriptionService.cancelSubscription(Number(id));
               Alert.alert("Thành công", "Đã hủy đăng ký", [
                 { text: "OK", onPress: () => router.back() },
               ]);
@@ -250,7 +250,7 @@ export default function SubscriptionDetailScreen() {
 
   const handleRenewSubscription = async () => {
     try {
-      await subscriptionService.renewSubscription(String(id));
+      await subscriptionService.renewSubscription(Number(id));
       Alert.alert("Thành công", "Đã gia hạn đăng ký");
       loadSubscription();
     } catch (error: any) {
@@ -262,7 +262,7 @@ export default function SubscriptionDetailScreen() {
     if (!subscription) return;
 
     try {
-      await subscriptionService.updateSubscription(String(id), {
+      await subscriptionService.updateSubscription(Number(id), {
         auto_renew: !subscription.auto_renew,
       });
       Alert.alert("Thành công", `Đã ${subscription.auto_renew ? "tắt" : "bật"} tự động gia hạn`);
@@ -274,9 +274,9 @@ export default function SubscriptionDetailScreen() {
 
   if (loading || !subscription) {
     return (
-      <View style={[styles.container, styles.centerContent]}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color="#667eea" />
-        <Text style={styles.loadingText}>Đang tải...</Text>
+        <Text style={{ marginTop: 10, color: '#666' }}>Đang tải...</Text>
       </View>
     );
   }
@@ -421,10 +421,10 @@ export default function SubscriptionDetailScreen() {
                 <View style={styles.paymentHistoryHeader}>
                   <View style={styles.paymentHistoryInfo}>
                     <Text style={styles.paymentHistoryAmount}>
-                      {formatPrice(payment.amount)}
+                      {formatPrice(typeof payment.amount === 'number' ? payment.amount : parseFloat(payment.amount))}
                     </Text>
                     <Text style={styles.paymentHistoryDate}>
-                      {formatDate(payment.createdAt)}
+                      {formatDate(payment.createdAt || '')}
                     </Text>
                   </View>
                   <View

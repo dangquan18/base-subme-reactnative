@@ -19,7 +19,9 @@ import {
   View
 } from "react-native";
 
+
 /* ================= TYPES (Khớp với JSON bạn gửi) ================= */
+
 
 interface Statistics {
   subscriptions: any[];
@@ -28,11 +30,13 @@ interface Statistics {
   reviewCount: number;
 }
 
+
 interface Category {
   id: number;
   name: string;
   description: string;
 }
+
 
 interface PackageDetail {
   id: number;
@@ -53,7 +57,9 @@ interface PackageDetail {
   statistics: Statistics;
 }
 
+
 /* ================= HELPER ================= */
+
 
 const formatCurrency = (amount: string | number) => {
   return new Intl.NumberFormat("vi-VN", {
@@ -61,6 +67,7 @@ const formatCurrency = (amount: string | number) => {
     currency: "VND",
   }).format(Number(amount));
 };
+
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -71,6 +78,7 @@ const getStatusColor = (status: string) => {
   }
 };
 
+
 const getStatusLabel = (status: string) => {
   switch (status) {
     case "approved": return "Đã duyệt";
@@ -80,20 +88,24 @@ const getStatusLabel = (status: string) => {
   }
 };
 
+
 /* ================= COMPONENT ================= */
+
 
 export default function PackageDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams(); 
+  const { id } = useLocalSearchParams();
+
 
   const [pkg, setPkg] = useState<PackageDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+
   // State cho Modal Edit
   const [modalVisible, setModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+ 
   // Form data để update
   const [editForm, setEditForm] = useState({
     price: "",
@@ -101,16 +113,20 @@ export default function PackageDetailScreen() {
     is_active: true,
   });
 
+
   /* ================= FETCH DATA ================= */
+
 
   useEffect(() => {
     if (id) fetchPackageDetail();
   }, [id]);
 
+
   const fetchPackageDetail = async () => {
     try {
       const token = localStorage.getItem("auth_token");
-      // Lưu ý: Đổi localhost thành IP máy tính nếu chạy trên điện thoại thật
+      
+      // Lấy thông tin package
       const res = await fetch(`http://localhost:3000/vendor/packages/${id}`, {
         method: "GET",
         headers: {
@@ -120,8 +136,40 @@ export default function PackageDetailScreen() {
       });
 
       if (!res.ok) throw new Error("Failed to fetch");
+     
+      let data: PackageDetail = await res.json();
       
-      const data: PackageDetail = await res.json();
+      // Lấy orders để tính subscriber count thực tế
+      try {
+        const resOrders = await fetch("http://localhost:3000/vendor/orders", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+        });
+
+        if (resOrders.ok) {
+          const ordersData = await resOrders.json();
+          const orders = ordersData.orders || [];
+          
+          // Đếm số subscriber active cho package này
+          const activeSubscribers = orders.filter((order: any) => 
+            order.plan_id === Number(id) && order.status === 'active'
+          ).length;
+          
+          console.log(`📊 Package ${id} - Active subscribers:`, activeSubscribers);
+          
+          // Update subscriber_count với dữ liệu thực tế
+          data = {
+            ...data,
+            subscriber_count: activeSubscribers,
+          };
+        }
+      } catch (orderError) {
+        console.log("Warning: Could not fetch orders for subscriber count");
+      }
+      
       setPkg(data);
     } catch (error) {
       Alert.alert("Lỗi", "Không tải được thông tin gói");
@@ -132,12 +180,15 @@ export default function PackageDetailScreen() {
     }
   };
 
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchPackageDetail();
   };
 
+
   /* ================= ACTIONS ================= */
+
 
   // 1. Chuẩn bị dữ liệu cho Modal Edit
   const openEditModal = () => {
@@ -149,6 +200,7 @@ export default function PackageDetailScreen() {
     });
     setModalVisible(true);
   };
+
 
   // 2. Gọi API UPDATE (PATCH)
   const handleUpdate = async () => {
@@ -162,6 +214,7 @@ export default function PackageDetailScreen() {
         is_active: editForm.is_active, // Server cần boolean hoặc 1/0 tùy backend, thường Express nhận boolean ok
       };
 
+
       const res = await fetch(`http://localhost:3000/vendor/packages/${pkg.id}`, {
         method: "PATCH",
         headers: {
@@ -171,10 +224,12 @@ export default function PackageDetailScreen() {
         body: JSON.stringify(payload),
       });
 
+
       if (!res.ok) {
          const txt = await res.text();
          throw new Error(txt);
       }
+
 
       Alert.alert("Thành công", "Đã cập nhật thông tin gói");
       setModalVisible(false);
@@ -185,6 +240,7 @@ export default function PackageDetailScreen() {
       setIsSubmitting(false);
     }
   };
+
 
   // 3. Gọi API DELETE
   const handleDelete = () => {
@@ -204,12 +260,14 @@ export default function PackageDetailScreen() {
                 headers: { "Authorization": `Bearer ${token}` },
               });
 
+
               if (!res.ok) {
                  const errorText = await res.text();
                  // Hiển thị lỗi từ server để biết tại sao không xóa được (VD: dính khóa ngoại)
                  Alert.alert("Không thể xóa", `Server phản hồi: ${errorText}`);
                  return;
               }
+
 
               Alert.alert("Thành công", "Đã xóa gói dịch vụ");
               router.back();
@@ -222,7 +280,9 @@ export default function PackageDetailScreen() {
     );
   };
 
+
   /* ================= RENDER UI ================= */
+
 
   if (loading) {
     return (
@@ -232,10 +292,13 @@ export default function PackageDetailScreen() {
     );
   }
 
+
   if (!pkg) return null;
+
 
   // Lấy thống kê an toàn
   const stats = pkg.statistics || { totalRevenue: 0, averageRating: 0, reviewCount: 0 };
+
 
   return (
     <View style={styles.container}>
@@ -250,6 +313,7 @@ export default function PackageDetailScreen() {
         <Text style={styles.headerTitle}>Chi tiết gói dịch vụ</Text>
         <View style={{ width: 24 }} />
       </LinearGradient>
+
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -272,26 +336,29 @@ export default function PackageDetailScreen() {
                 </View>
             </View>
 
+
             <View style={styles.cardBody}>
                 <Text style={styles.categoryName}>{pkg.category?.name || "Chưa phân loại"}</Text>
                 <Text style={styles.pkgName}>{pkg.name}</Text>
-                
+               
                 <View style={styles.priceRow}>
                     <Text style={styles.price}>{formatCurrency(pkg.price)}</Text>
                     <Text style={styles.unit}>/ {pkg.duration_value} {pkg.duration_unit}</Text>
                 </View>
 
+
                 <View style={styles.divider} />
-                
+               
                 <Text style={styles.label}>Mô tả:</Text>
                 <Text style={styles.desc}>{pkg.description}</Text>
 
+
                 {/* Trạng thái Active/Inactive */}
                 <View style={[styles.activeBadge, { backgroundColor: pkg.is_active ? '#E8F5E9' : '#FFEBEE'}]}>
-                     <Ionicons 
-                        name={pkg.is_active ? "checkmark-circle" : "close-circle"} 
-                        size={18} 
-                        color={pkg.is_active ? "#2E7D32" : "#C62828"} 
+                     <Ionicons
+                        name={pkg.is_active ? "checkmark-circle" : "close-circle"}
+                        size={18}
+                        color={pkg.is_active ? "#2E7D32" : "#C62828"}
                      />
                      <Text style={{color: pkg.is_active ? "#2E7D32" : "#C62828", fontWeight: '600', marginLeft: 6}}>
                         {pkg.is_active ? "Đang hoạt động" : "Đang tạm ngưng"}
@@ -299,6 +366,7 @@ export default function PackageDetailScreen() {
                 </View>
             </View>
         </View>
+
 
         {/* SECTION 2: STATISTICS (Dữ liệu từ key 'statistics') */}
         <Text style={styles.sectionTitle}>Hiệu quả kinh doanh</Text>
@@ -311,6 +379,7 @@ export default function PackageDetailScreen() {
                 <Text style={styles.statLabel}>Doanh thu</Text>
             </View>
 
+
             <View style={styles.statCard}>
                 <View style={[styles.iconBox, {backgroundColor: '#FFF3E0'}]}>
                     <Ionicons name="people" size={20} color="#FF9800" />
@@ -318,6 +387,7 @@ export default function PackageDetailScreen() {
                 <Text style={styles.statValue}>{pkg.subscriber_count}</Text>
                 <Text style={styles.statLabel}>Người đăng ký</Text>
             </View>
+
 
             <View style={styles.statCard}>
                 <View style={[styles.iconBox, {backgroundColor: '#FFF8E1'}]}>
@@ -328,11 +398,13 @@ export default function PackageDetailScreen() {
             </View>
         </View>
 
+
         {/* SECTION 3: METADATA */}
         <View style={styles.metaBox}>
             <Text style={styles.metaText}>Ngày tạo: {new Date(pkg.createdAt).toLocaleString('vi-VN')}</Text>
             <Text style={styles.metaText}>ID Gói: #{pkg.id}</Text>
         </View>
+
 
         {/* SECTION 4: ACTIONS */}
         <View style={styles.actionContainer}>
@@ -341,12 +413,14 @@ export default function PackageDetailScreen() {
                 <Text style={styles.btnText}>Cập nhật thông tin</Text>
             </TouchableOpacity>
 
+
             {/* <TouchableOpacity style={styles.btnDelete} onPress={handleDelete}>
                 <Ionicons name="trash-outline" size={20} color="#FF3B30" />
                 <Text style={[styles.btnText, { color: '#FF3B30' }]}>Xóa gói</Text>
             </TouchableOpacity> */}
         </View>
       </ScrollView>
+
 
       {/* ================= MODAL EDIT ================= */}
       <Modal
@@ -364,26 +438,30 @@ export default function PackageDetailScreen() {
                     </TouchableOpacity>
                 </View>
 
+
                 <ScrollView showsVerticalScrollIndicator={false}>
                     {/* Tên gói (Readonly để tránh đổi lung tung, tùy nghiệp vụ) */}
                     <Text style={styles.inputLabel}>Tên gói (Không đổi)</Text>
                     <TextInput style={[styles.input, {backgroundColor: '#EEE'}]} value={pkg.name} editable={false} />
 
+
                     <Text style={styles.inputLabel}>Giá bán (VNĐ)</Text>
-                    <TextInput 
+                    <TextInput
                         style={styles.input}
                         value={editForm.price}
                         keyboardType="numeric"
                         onChangeText={(v) => setEditForm({...editForm, price: v})}
                     />
 
+
                     <Text style={styles.inputLabel}>Mô tả chi tiết</Text>
-                    <TextInput 
+                    <TextInput
                         style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
                         value={editForm.description}
                         multiline
                         onChangeText={(v) => setEditForm({...editForm, description: v})}
                     />
+
 
                     {/* Switch Is Active */}
                     <View style={styles.switchRow}>
@@ -391,7 +469,7 @@ export default function PackageDetailScreen() {
                             <Text style={styles.inputLabel}>Trạng thái hoạt động</Text>
                             <Text style={{fontSize: 12, color: '#888'}}>Tắt để tạm ngưng gói này</Text>
                         </View>
-                        <Switch 
+                        <Switch
                             value={editForm.is_active}
                             onValueChange={(v) => setEditForm({...editForm, is_active: v})}
                             trackColor={{ false: "#767577", true: AppTheme.colors.primaryLight }}
@@ -399,8 +477,9 @@ export default function PackageDetailScreen() {
                         />
                     </View>
 
-                    <TouchableOpacity 
-                        style={[styles.btnSubmit, isSubmitting && { opacity: 0.7 }]} 
+
+                    <TouchableOpacity
+                        style={[styles.btnSubmit, isSubmitting && { opacity: 0.7 }]}
                         onPress={handleUpdate}
                         disabled={isSubmitting}
                     >
@@ -414,12 +493,14 @@ export default function PackageDetailScreen() {
   );
 }
 
+
 /* ================= STYLES ================= */
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F5F6FA" },
   centerBox: { flex: 1, justifyContent: "center", alignItems: "center" },
-  
+ 
   // Header
   header: {
     paddingTop: 50,
@@ -432,7 +513,9 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#FFF" },
 
+
   content: { padding: 16, paddingBottom: 40 },
+
 
   // Info Card
   card: {
@@ -464,18 +547,19 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   statusText: { color: '#FFF', fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  
+ 
   cardBody: { padding: 16 },
   categoryName: { fontSize: 13, color: '#888', textTransform: 'uppercase', marginBottom: 4 },
   pkgName: { fontSize: 20, fontWeight: '700', color: '#333', marginBottom: 8 },
   priceRow: { flexDirection: 'row', alignItems: 'baseline' },
   price: { fontSize: 24, fontWeight: '700', color: AppTheme.colors.primary },
   unit: { fontSize: 14, color: '#666', marginLeft: 4 },
-  
+ 
   divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 12 },
-  
+ 
   label: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 4 },
   desc: { fontSize: 14, color: '#555', lineHeight: 22, marginBottom: 12 },
+
 
   activeBadge: {
     flexDirection: 'row',
@@ -484,6 +568,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignSelf: 'flex-start'
   },
+
 
   // Statistics
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#333', marginBottom: 12, marginLeft: 4 },
@@ -504,9 +589,11 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 14, fontWeight: '700', color: '#333', marginBottom: 2, textAlign: 'center' },
   statLabel: { fontSize: 11, color: '#888', textAlign: 'center' },
 
+
   // Metadata
   metaBox: { alignItems: 'center', marginBottom: 24 },
   metaText: { fontSize: 12, color: '#AAA', marginVertical: 2 },
+
 
   // Actions
   actionContainer: { gap: 12 },
@@ -531,6 +618,7 @@ const styles = StyleSheet.create({
     gap: 8
   },
   btnText: { fontSize: 16, fontWeight: '600', color: '#FFF' },
+
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },

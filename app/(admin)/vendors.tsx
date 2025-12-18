@@ -4,18 +4,25 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
-    SafeAreaView,
-    StatusBar,
+    Pressable,
     StyleSheet,
     Text,
-    View
+    View,
+    TouchableOpacity,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { AppTheme } from '@/constants/theme';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
 
 // --- CẤU HÌNH ---
 // Lưu ý: Nếu chạy Android Emulator, đổi localhost thành 10.0.2.2
 const API_URLL = 'http://localhost:3000/vendor/admin/all'; 
 
-export default function App() {
+export default function VendorsScreen() {
+  const router = useRouter();
+  const { signOut } = useAuth();
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -113,14 +120,42 @@ const fetchVendors = async () => {
     );
   };
 
+  const handleSignOut = async () => {
+    Alert.alert(
+      "Đăng xuất",
+      "Bạn có chắc chắn muốn đăng xuất?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Đăng xuất",
+          style: "destructive",
+          onPress: async () => {
+            await signOut();
+            router.replace("/(auth)/welcome");
+          },
+        },
+      ]
+    );
+  };
+
   // --- RENDER MÀN HÌNH CHÍNH ---
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f0f2f5" />
-      
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Danh Sách Vendor</Text>
-      </View>
+    <View style={styles.container}>
+      {/* Header với Gradient */}
+      <LinearGradient
+        colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
+        style={styles.header}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Quản lý Vendor</Text>
+          <TouchableOpacity onPress={handleSignOut} style={styles.logoutBtn}>
+            <Ionicons name="log-out-outline" size={24} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
 
       {loading ? (
         <View style={styles.centerLoading}>
@@ -138,7 +173,7 @@ const fetchVendors = async () => {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -146,19 +181,40 @@ const fetchVendors = async () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: '#F5F6FA',
   },
   header: {
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    paddingTop: 60,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '800',
+    color: '#FFF',
   },
   centerLoading: {
     flex: 1,

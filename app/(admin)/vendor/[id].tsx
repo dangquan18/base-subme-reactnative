@@ -7,14 +7,15 @@ import {
     Alert,
     Dimensions,
     Image,
-    SafeAreaView,
     ScrollView,
-    StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
     View
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { AppTheme } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
 
 // --- Type Definitions (Dựa trên JSON response) ---
 interface Plan {
@@ -64,6 +65,7 @@ const { width } = Dimensions.get('window');
 export default function VendorDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { signOut } = useAuth();
   
   const [vendor, setVendor] = useState<VendorDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -111,6 +113,24 @@ export default function VendorDetailScreen() {
       fetchVendorDetails();
     }
   }, [id]);
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      "Đăng xuất",
+      "Bạn có chắc chắn muốn đăng xuất?",
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Đăng xuất",
+          style: "destructive",
+          onPress: async () => {
+            await signOut();
+            router.replace("/(auth)/welcome");
+          },
+        },
+      ]
+    );
+  };
 
   // --- Render Sections ---
 
@@ -229,18 +249,24 @@ export default function VendorDetailScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar barStyle="dark-content" />
 
-      {/* Header Custom */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{vendor.name}</Text>
-        <View style={{ width: 40 }} /> 
-      </View>
+      {/* Header với Gradient */}
+      <LinearGradient
+        colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
+        style={styles.header}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>{vendor.name}</Text>
+          <TouchableOpacity onPress={handleSignOut} style={styles.logoutBtn}>
+            <Ionicons name="log-out-outline" size={24} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
 
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
@@ -286,7 +312,7 @@ export default function VendorDetailScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -294,7 +320,7 @@ export default function VendorDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa',
+    backgroundColor: '#F5F6FA',
   },
   centerContainer: {
     flex: 1,
@@ -302,25 +328,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
   },
-  backButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoutBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    maxWidth: '70%',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFF',
+    maxWidth: '60%',
+    textAlign: 'center',
   },
   scrollContent: {
     padding: 16,
