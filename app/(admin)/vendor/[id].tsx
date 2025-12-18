@@ -126,7 +126,7 @@ export default function VendorDetailScreen() {
             
             // NOTE: URL theo yêu cầu là /packages/admin... nhưng đây là duyệt vendor.
             // Nếu API báo lỗi 404, hãy kiểm tra lại xem có phải là /vendor/admin/:id/approve không nhé.
-            const url = `http://localhost:3000/packages/admin/${id}/approve`;
+            const url = `http://localhost:3000/vendor/admin/${id}/approve`;
 
             const response = await fetch(url, {
                 method: 'PATCH',
