@@ -3,7 +3,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: "user" | "vendor";
+  role: "user" | "vendor" | "admin";
   status?: "pending" | "active" | "approved" | "rejected";
   phone?: string;
   address?: string;
@@ -15,7 +15,7 @@ export interface User {
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<"user" | "vendor">;
+  signIn: (email: string, password: string) => Promise<"user" | "vendor" | "admin">;
   signUp: (email: string, password: string, name: string, role: "user " | "vendor", phone?: string, address?: string, date_of_birth?: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;  reloadUser: () => Promise<void>;}

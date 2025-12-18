@@ -1,8 +1,8 @@
-import { Redirect } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
-import { View, ActivityIndicator, Text } from "react-native";
-import { useEffect } from "react";
 import { useRouter } from "expo-router";
+import { useEffect } from "react";
+import { ActivityIndicator, Text, View } from "react-native";
+
 
 export default function Index() {
   const { user, loading } = useAuth();
@@ -14,6 +14,8 @@ export default function Index() {
         router.replace("/(auth)/welcome");
       } else if (user.role === "vendor") {
         router.replace("/(vendor)");
+      } else if (user.role === "admin") {
+        router.replace("/(admin)");
       } else {
         router.replace("/(tabs)");
       }

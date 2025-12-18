@@ -1,11 +1,11 @@
+import { AuthContextType, User } from "@/types";
 import React, {
   createContext,
-  useContext,
-  useState,
-  useEffect,
   ReactNode,
+  useContext,
+  useEffect,
+  useState,
 } from "react";
-import { User, AuthContextType } from "@/types";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { authService } = await import("@/services/auth.service");
       const user = await authService.signIn(email, password);
       setUser(user);
-      return user.role as "user" | "vendor";
+      return user.role as "user" | "vendor" | "admin";
     } catch (error) {
       throw error;
     }

@@ -1,17 +1,17 @@
+import { useAuth } from "@/contexts/AuthContext";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  Pressable,
-  ScrollView,
   Alert,
   Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -99,6 +99,10 @@ export default function SignInScreen() {
             Alert.alert("Lỗi", message);
           }
         }
+      } else if (role === "admin") {
+        // User is an admin
+        console.log("ℹ️ Admin user, redirecting to admin panel");
+        router.replace("/(admin)");
       } else {
         // User is a regular customer
         console.log("ℹ️ Regular customer, redirecting to customer tabs");
