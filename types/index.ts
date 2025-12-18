@@ -9,6 +9,8 @@ export interface User {
   createdAt: Date;
   isPremium?: boolean;
   role: "user" | "vendor";
+  address?: string;
+
 }
 
 export interface AuthContextType {
