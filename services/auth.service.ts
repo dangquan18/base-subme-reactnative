@@ -1,6 +1,6 @@
-import { apiClient } from "./api";
 import { User } from "@/types";
 import { tokenManager } from "@/utils/storage";
+import { apiClient } from "./api";
 
 interface LoginResponse {
   success: boolean;
@@ -16,7 +16,7 @@ interface RegisterRequest {
   name: string;
   email: string;
   password: string;
-  role: "user" | "vendor";
+  role: "user" | "vendor" | "admin";
   phone?: string;
   address?: string;
   date_of_birth?: string;
