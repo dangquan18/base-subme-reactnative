@@ -8,13 +8,13 @@ export interface User {
   interests?: string[];
   createdAt: Date;
   isPremium?: boolean;
-  role: "user" | "vendor";
+  role: "user" | "vendor" | "admin";
 }
 
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<"user" | "vendor">;
+  signIn: (email: string, password: string) => Promise<"user" | "vendor" | "admin">;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
