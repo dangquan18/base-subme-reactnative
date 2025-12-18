@@ -1,16 +1,16 @@
+import { useAuth } from "@/contexts/AuthContext";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
+  Alert,
   Pressable,
   ScrollView,
-  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -32,7 +32,11 @@ export default function SignInScreen() {
       // Navigate based on role
       if (role === "vendor") {
         router.replace("/(vendor)" as any);
-      } else {
+      }
+      else if (role === "admin") {
+        router.replace("/(admin)" as any);
+      }
+      else {
         router.replace("/(tabs)");
       }
     } catch (error) {

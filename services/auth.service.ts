@@ -9,7 +9,7 @@ interface LoginResponse {
 interface DecodedToken {
   email: string;
   sub: number; // user id
-  role: "user" | "vendor";
+  role: "user" | "vendor" | "admin";
   iat: number;
   exp: number;
 }

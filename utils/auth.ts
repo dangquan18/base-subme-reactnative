@@ -1,6 +1,6 @@
 // Authentication utilities
 
-import { tokenManager, isTokenExpired } from "./storage";
+import { isTokenExpired, tokenManager } from "./storage";
 
 /**
  * Check if user is authenticated
@@ -19,7 +19,7 @@ export const isAuthenticated = async (): Promise<boolean> => {
 /**
  * Get user role from stored user data
  */
-export const getUserRole = async (): Promise<"user" | "vendor" | null> => {
+export const getUserRole = async (): Promise<"user" | "vendor" | "admin" | null> => {
   try {
     const user = await tokenManager.getUser();
     return user?.role || null;
@@ -34,6 +34,14 @@ export const getUserRole = async (): Promise<"user" | "vendor" | null> => {
 export const isVendor = async (): Promise<boolean> => {
   const role = await getUserRole();
   return role === "vendor";
+};
+
+/**
+ * Check if user is admin
+ */
+export const isAdmin = async (): Promise<boolean> => {
+  const role = await getUserRole();
+  return role === "admin";
 };
 
 /**
