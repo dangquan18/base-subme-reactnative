@@ -35,62 +35,73 @@ export default function SignInScreen() {
       const role = await signIn(email, password);
       console.log("🔍 Role from signIn:", role);
       
-      // Try to get vendor info to determine if user is vendor
-      try {
-        const { vendorService } = await import("@/services/vendor.service");
-        const vendorInfo = await vendorService.getVendorInfo();
-        
-        // If API succeeds, user is a vendor
-        console.log("✅ User is vendor! Vendor info:", vendorInfo);
-        
-        // Update user data with vendor info from API
-        const { tokenManager } = await import("@/utils/storage");
-        await tokenManager.setUser({
-          id: vendorInfo.id,
-          name: vendorInfo.name,
-          email: vendorInfo.email,
-          role: "vendor",
-          status: vendorInfo.status,
-          phone: vendorInfo.phone,
-          address: vendorInfo.address,
-          createdAt: vendorInfo.createdAt,
-          updatedAt: vendorInfo.updatedAt,
-        });
-        
-        // Reload user in AuthContext to reflect updated status
-        await reloadUser();
-        
-        console.log("✅ Vendor status from API:", vendorInfo.status);
-        
-        if (vendorInfo.status === "pending") {
-          // Vendor is pending approval
-          router.replace("/(auth)/vendor-pending");
-        } else if (vendorInfo.status === "active" || vendorInfo.status === "approved") {
-          // Vendor is approved
-          router.replace("/(vendor)");
-        } else {
-          // Vendor is rejected or unknown status
-          if (Platform.OS === 'web') {
-            if (window.confirm("Tài khoản không được phê duyệt\n\nTài khoản của bạn đã bị từ chối. Vui lòng liên hệ với quản trị viên để biết thêm chi tiết.")) {
-              const { authService } = await import("@/services/auth.service");
-              await authService.signOut();
-              router.replace("/(auth)/welcome");
-            }
+      // Check role to determine user type
+      if (role === "vendor") {
+        // User is a vendor - get detailed vendor info
+        try {
+          const { vendorService } = await import("@/services/vendor.service");
+          const vendorInfo = await vendorService.getVendorInfo();
+          
+          console.log("✅ Vendor info:", vendorInfo);
+          
+          // Update user data with vendor info from API
+          const { tokenManager } = await import("@/utils/storage");
+          await tokenManager.setUser({
+            id: vendorInfo.id,
+            name: vendorInfo.name,
+            email: vendorInfo.email,
+            role: "vendor",
+            status: vendorInfo.status,
+            phone: vendorInfo.phone,
+            address: vendorInfo.address,
+            createdAt: vendorInfo.createdAt,
+            updatedAt: vendorInfo.updatedAt,
+          });
+          
+          // Reload user in AuthContext to reflect updated status
+          await reloadUser();
+          
+          console.log("✅ Vendor status from API:", vendorInfo.status);
+          
+          if (vendorInfo.status === "pending") {
+            // Vendor is pending approval
+            router.replace("/(auth)/vendor-pending");
+          } else if (vendorInfo.status === "active" || vendorInfo.status === "approved") {
+            // Vendor is approved
+            router.replace("/(vendor)");
           } else {
-            Alert.alert(
-              "Tài khoản không được phê duyệt",
-              "Tài khoản của bạn đã bị từ chối. Vui lòng liên hệ với quản trị viên để biết thêm chi tiết.",
-              [{ text: "OK", onPress: async () => {
+            // Vendor is rejected or unknown status
+            if (Platform.OS === 'web') {
+              if (window.confirm("Tài khoản không được phê duyệt\n\nTài khoản của bạn đã bị từ chối. Vui lòng liên hệ với quản trị viên để biết thêm chi tiết.")) {
                 const { authService } = await import("@/services/auth.service");
                 await authService.signOut();
                 router.replace("/(auth)/welcome");
-              }}]
-            );
+              }
+            } else {
+              Alert.alert(
+                "Tài khoản không được phê duyệt",
+                "Tài khoản của bạn đã bị từ chối. Vui lòng liên hệ với quản trị viên để biết thêm chi tiết.",
+                [{ text: "OK", onPress: async () => {
+                  const { authService } = await import("@/services/auth.service");
+                  await authService.signOut();
+                  router.replace("/(auth)/welcome");
+                }}]
+              );
+            }
+          }
+        } catch (error: any) {
+          // Failed to get vendor info - show error
+          console.error("❌ Failed to get vendor info:", error);
+          const message = error.response?.data?.message || "Không thể lấy thông tin vendor. Vui lòng thử lại.";
+          if (Platform.OS === 'web') {
+            window.alert(`Lỗi\n\n${message}`);
+          } else {
+            Alert.alert("Lỗi", message);
           }
         }
-      } catch (error: any) {
-        // API /vendor/info failed - user is a regular customer, not vendor
-        console.log("ℹ️ Not a vendor (API failed), redirecting to customer tabs");
+      } else {
+        // User is a regular customer
+        console.log("ℹ️ Regular customer, redirecting to customer tabs");
         router.replace("/(tabs)");
       }
     } catch (error: any) {

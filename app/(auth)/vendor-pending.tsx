@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -48,7 +49,11 @@ export default function VendorPendingScreen() {
         </View>
 
         {/* Main Content */}
-        <View style={styles.content}>
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={styles.title}>Tài khoản đang được xác minh</Text>
           <Text style={styles.subtitle}>
             Cảm ơn bạn đã đăng ký làm nhà cung cấp dịch vụ!
@@ -134,7 +139,7 @@ export default function VendorPendingScreen() {
             <Ionicons name="log-out-outline" size={20} color="#F44336" />
             <Text style={styles.logoutText}>Đăng xuất</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </LinearGradient>
     </View>
   );
@@ -175,8 +180,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
+  },
+  contentContainer: {
     padding: 24,
     paddingTop: 32,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 26,
