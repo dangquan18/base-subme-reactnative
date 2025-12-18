@@ -37,6 +37,10 @@ export default function PackageDetailScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [approveReason, setApproveReason] = useState('Plan meets quality standards'); // Mặc định theo yêu cầu
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // State quản lý việc từ chối gói
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
 
   // --- 1. HÀM GỌI API LẤY CHI TIẾT ---
   const fetchPlanDetails = async () => {
@@ -87,6 +91,9 @@ export default function PackageDetailScreen() {
     setIsProcessing(true);
     try {
       const token = await AsyncStorage.getItem('auth_token');
+      console.log(`Approving package ID: ${id}`);
+      console.log('Reason:', approveReason);
+      
       const response = await fetch(`${BASE_URL}/packages/admin/${id}/approve`, {
         method: 'PATCH',
         headers: {
@@ -99,22 +106,80 @@ export default function PackageDetailScreen() {
         }),
       });
 
-      // Kiểm tra status code hoặc data trả về (tuỳ backend)
-      // Giả sử backend trả về 200/201 là thành công
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Response data:', data);
+
       if (response.ok) {
-        Alert.alert('Thành công', 'Đã duyệt gói dịch vụ này!', [
-          { text: 'OK', onPress: () => {
-              setModalVisible(false);
-              fetchPlanDetails(); // Tải lại dữ liệu để cập nhật UI
-          }}
-        ]);
+        // Đóng modal và tải lại dữ liệu ngay lập tức
+        setModalVisible(false);
+        setIsProcessing(false);
+        setLoading(true); // Hiển thị loading khi reload
+        
+        // Tải lại dữ liệu gói
+        await fetchPlanDetails();
+        
+        // Hiển thị thông báo thành công
+        Alert.alert('Thành công', 'Đã duyệt gói dịch vụ này!');
       } else {
-        const errData = await response.json();
-        Alert.alert('Thất bại', errData.message || 'Có lỗi xảy ra khi duyệt');
+        Alert.alert('Thất bại', data.message || 'Có lỗi xảy ra khi duyệt');
+        setIsProcessing(false);
       }
     } catch (error) {
+      console.error('Error approving package:', error);
       Alert.alert('Lỗi', 'Lỗi kết nối server khi duyệt gói');
-    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // --- 3. HÀM GỌI API TỪ CHỐI GÓI (PATCH) ---
+  const handleRejectPackage = async () => {
+    if (!rejectReason.trim()) {
+      Alert.alert('Thông báo', 'Vui lòng nhập lý do từ chối');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      console.log(`Rejecting package ID: ${id}`);
+      console.log('Reason:', rejectReason);
+      
+      // Sử dụng cùng endpoint /approve, chỉ khác status
+      const response = await fetch(`${BASE_URL}/packages/admin/${id}/approve`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: 'rejected',
+          reason: rejectReason
+        }),
+      });
+
+      console.log('Response status:', response.status);
+      const data = await response.json();
+      console.log('Response data:', data);
+
+      if (response.ok) {
+        // Đóng modal và tải lại dữ liệu ngay lập tức
+        setRejectModalVisible(false);
+        setIsProcessing(false);
+        setLoading(true); // Hiển thị loading khi reload
+        
+        // Tải lại dữ liệu gói
+        await fetchPlanDetails();
+        
+        // Hiển thị thông báo thành công
+        Alert.alert('Thành công', 'Đã từ chối gói dịch vụ này!');
+      } else {
+        Alert.alert('Thất bại', data.message || 'Có lỗi xảy ra khi từ chối');
+        setIsProcessing(false);
+      }
+    } catch (error) {
+      console.error('Error rejecting package:', error);
+      Alert.alert('Lỗi', 'Lỗi kết nối server khi từ chối gói');
       setIsProcessing(false);
     }
   };
@@ -205,12 +270,19 @@ export default function PackageDetailScreen() {
                 <Text style={styles.categoryBadge}>{plan.category?.name}</Text>
               </View>
               <View style={[styles.statusBadge, 
-                { backgroundColor: plan.status === 'approved' ? '#E8F5E9' : '#FFF3E0' }
+                { backgroundColor: 
+                  plan.status === 'approved' ? '#E8F5E9' : 
+                  plan.status === 'rejected' ? '#FFEBEE' : '#FFF3E0' 
+                }
               ]}>
                 <Text style={[styles.statusText, 
-                  { color: plan.status === 'approved' ? '#2E7D32' : '#E65100' }
+                  { color: 
+                    plan.status === 'approved' ? '#2E7D32' : 
+                    plan.status === 'rejected' ? '#C62828' : '#E65100'
+                  }
                 ]}>
-                  {plan.status === 'approved' ? 'ĐÃ DUYỆT' : 'CHỜ DUYỆT'}
+                  {plan.status === 'approved' ? 'ĐÃ DUYỆT' : 
+                   plan.status === 'rejected' ? 'ĐÃ TỪ CHỐI' : 'CHỜ DUYỆT'}
                 </Text>
               </View>
             </View>
@@ -268,10 +340,19 @@ export default function PackageDetailScreen() {
         {isPending && (
           <View style={styles.bottomBar}>
             <TouchableOpacity 
+              style={styles.rejectButton} 
+              onPress={() => setRejectModalVisible(true)}
+            >
+              <Ionicons name="close-circle-outline" size={20} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.rejectButtonText}>Từ chối</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
               style={styles.approveButton} 
               onPress={() => setModalVisible(true)}
             >
-              <Text style={styles.approveButtonText}>Duyệt gói này</Text>
+              <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.approveButtonText}>Duyệt gói</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -318,6 +399,55 @@ export default function PackageDetailScreen() {
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
                   <Text style={styles.btnTextConfirm}>Xác nhận</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* MODAL REJECT */}
+      <Modal
+        visible={rejectModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setRejectModalVisible(false)}
+      >
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Xác nhận từ chối</Text>
+            <Text style={styles.modalSubtitle}>Gói: {plan.name}</Text>
+            
+            <Text style={styles.label}>Lý do từ chối: <Text style={{ color: 'red' }}>*</Text></Text>
+            <TextInput 
+              style={styles.input}
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              multiline
+              placeholder="Nhập lý do từ chối gói này..."
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.btn, styles.btnCancel]} 
+                onPress={() => setRejectModalVisible(false)}
+                disabled={isProcessing}
+              >
+                <Text style={styles.btnTextCancel}>Huỷ</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.btn, styles.btnReject]} 
+                onPress={handleRejectPackage}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.btnTextReject}>Từ chối</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -524,14 +654,33 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#eee',
     paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+    flexDirection: 'row',
+    gap: 12,
   },
   approveButton: {
-    backgroundColor: '#007AFF',
+    flex: 1,
+    backgroundColor: '#4CAF50',
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   approveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  rejectButton: {
+    flex: 1,
+    backgroundColor: '#F44336',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  rejectButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
@@ -600,11 +749,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
     marginLeft: 10,
   },
+  btnReject: {
+    backgroundColor: '#F44336',
+    marginLeft: 10,
+  },
   btnTextCancel: {
     color: '#333',
     fontWeight: '600',
   },
   btnTextConfirm: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  btnTextReject: {
     color: '#fff',
     fontWeight: '600',
   },

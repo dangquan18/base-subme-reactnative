@@ -3,8 +3,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -62,6 +62,13 @@ export default function VendorsScreen() {
   useEffect(() => {
     fetchVendors();
   }, []);
+
+  // Reload data khi quay lại màn hình này
+  useFocusEffect(
+    useCallback(() => {
+      fetchVendors();
+    }, [])
+  );
 
   // ================= UI HELPER =================
   const getStatusColor = (status: string) => {

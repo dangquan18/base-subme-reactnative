@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -70,6 +70,13 @@ const AdminPackagesScreen = () => {
   useEffect(() => {
     fetchPackages();
   }, []);
+
+  // Reload data khi quay lại màn hình này
+  useFocusEffect(
+    useCallback(() => {
+      fetchPackages();
+    }, [])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

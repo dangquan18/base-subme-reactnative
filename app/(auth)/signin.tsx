@@ -69,18 +69,21 @@ export default function SignInScreen() {
           } else if (vendorInfo.status === "active" || vendorInfo.status === "approved") {
             // Vendor is approved
             router.replace("/(vendor)");
+          } else if (vendorInfo.status === "rejected") {
+            // Vendor is rejected - show dedicated screen
+            router.replace("/(auth)/vendor-rejected");
           } else {
-            // Vendor is rejected or unknown status
+            // Unknown status
             if (Platform.OS === 'web') {
-              if (window.confirm("Tài khoản không được phê duyệt\n\nTài khoản của bạn đã bị từ chối. Vui lòng liên hệ với quản trị viên để biết thêm chi tiết.")) {
+              if (window.confirm("Tài khoản không hợp lệ\n\nTrạng thái tài khoản không xác định. Vui lòng liên hệ với quản trị viên.")) {
                 const { authService } = await import("@/services/auth.service");
                 await authService.signOut();
                 router.replace("/(auth)/welcome");
               }
             } else {
               Alert.alert(
-                "Tài khoản không được phê duyệt",
-                "Tài khoản của bạn đã bị từ chối. Vui lòng liên hệ với quản trị viên để biết thêm chi tiết.",
+                "Tài khoản không hợp lệ",
+                "Trạng thái tài khoản không xác định. Vui lòng liên hệ với quản trị viên.",
                 [{ text: "OK", onPress: async () => {
                   const { authService } = await import("@/services/auth.service");
                   await authService.signOut();
