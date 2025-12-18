@@ -1,166 +1,186 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useEffect, useState } from 'react';
+import { AppTheme } from "@/constants/theme";
+import { useAuth } from "@/contexts/AuthContext";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-    TouchableOpacity,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { AppTheme } from '@/constants/theme';
-import { useRouter } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-// --- CẤU HÌNH ---
-// Lưu ý: Nếu chạy Android Emulator, đổi localhost thành 10.0.2.2
-const API_URLL = 'http://localhost:3000/vendor/admin/all'; 
+// Nếu Android Emulator → dùng 10.0.2.2
+const API_URL = "http://localhost:3000/vendor/admin/all";
 
 export default function VendorsScreen() {
   const router = useRouter();
   const { signOut } = useAuth();
-  const [vendors, setVendors] = useState([]);
+
+  const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // --- HÀM GỌI API ---
-const fetchVendors = async () => {
-  try {
-    setLoading(true);
-    console.log('Bắt đầu gọi API...');
+  // ================= FETCH API =================
+  const fetchVendors = async () => {
+    try {
+      setLoading(true);
 
-    // 1. Lấy token từ AsyncStorage
-    const token = await AsyncStorage.getItem('auth_token');
+      const token = await AsyncStorage.getItem("auth_token");
+      if (!token) {
+        Alert.alert("Lỗi", "Không tìm thấy token, vui lòng đăng nhập lại");
+        return;
+      }
 
-    if (!token) {
-      Alert.alert('Lỗi', 'Không tìm thấy token, vui lòng đăng nhập lại');
-      return;
+      const response = await fetch(API_URL, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setVendors(data?.vendors || []);
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Lỗi", "Không thể tải danh sách vendor");
+    } finally {
+      setLoading(false);
     }
-
-    // 2. Gọi API
-    const response = await fetch('http://localhost:3000/vendor/admin/all', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    // 3. Set data
-    if (data?.vendors) {
-      setVendors(data.vendors);
-    } else {
-      setVendors([]);
-    }
-
-  } catch (error) {
-    console.error('Lỗi fetch:', error);
-    Alert.alert('Lỗi', 'Không thể tải dữ liệu. Hãy kiểm tra API hoặc Token.');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     fetchVendors();
   }, []);
 
-  // --- HÀM UI HELPER ---
-  const getStatusColor = (status: any) => {
+  // ================= UI HELPER =================
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return '#2e7d32'; // Xanh lá đậm
-      case 'approved': return '#2e7d32';
-      case 'pending': return '#ed6c02'; // Cam
-      default: return '#757575'; // Xám
+      case "active":
+      case "approved":
+        return "#2e7d32";
+      case "pending":
+        return "#ed6c02";
+      default:
+        return "#757575";
     }
   };
 
-  // --- RENDER MỘT ITEM (VENDOR CARD) ---
+  // ================= RENDER ITEM =================
   const renderItem = ({ item }: { item: any }) => {
     return (
-      <View style={styles.card}>
-        {/* Header Card: Tên + Trạng thái */}
+      <Pressable
+        onPress={() =>
+          router.push({
+            pathname: "/vendor/[id]",
+            params: { id: item.id },
+          })
+        }
+        style={({ pressed }) => [
+          styles.card,
+          pressed && { opacity: 0.85 },
+        ]}
+      >
+        {/* Header */}
         <View style={styles.cardHeader}>
           <Text style={styles.vendorName}>{item.name}</Text>
-          <View style={[styles.statusBadge, { borderColor: getStatusColor(item.status) }]}>
-            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-              {item.status ? item.status.toUpperCase() : 'UNKNOWN'}
+          <View
+            style={[
+              styles.statusBadge,
+              { borderColor: getStatusColor(item.status) },
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                { color: getStatusColor(item.status) },
+              ]}
+            >
+              {item.status?.toUpperCase() || "UNKNOWN"}
             </Text>
           </View>
         </View>
 
-        {/* Thông tin liên hệ */}
+        {/* Info */}
         <View style={styles.infoContainer}>
           <Text style={styles.infoText}>📧 {item.email}</Text>
-          <Text style={styles.infoText}>📞 {item.phone || 'Không có sđt'}</Text>
+          <Text style={styles.infoText}>
+            📞 {item.phone || "Không có sđt"}
+          </Text>
           <Text style={styles.infoText} numberOfLines={1}>
-            🏠 {item.address || 'Chưa cập nhật địa chỉ'}
+            🏠 {item.address || "Chưa cập nhật địa chỉ"}
           </Text>
         </View>
 
-        {/* Thống kê gói (Plans) */}
+        {/* Footer */}
         <View style={styles.footerContainer}>
           <Text style={styles.planCountText}>
-            📦 Số gói đã đăng: <Text style={{ fontWeight: 'bold' }}>{item.plans ? item.plans.length : 0}</Text>
+            📦 Số gói đã đăng:{" "}
+            <Text style={{ fontWeight: "bold" }}>
+              {item.plans?.length || 0}
+            </Text>
           </Text>
           <Text style={styles.dateText}>
-            Ngày tạo: {new Date(item.createdAt).toLocaleDateString('vi-VN')}
+            {new Date(item.createdAt).toLocaleDateString("vi-VN")}
           </Text>
         </View>
-      </View>
+      </Pressable>
     );
   };
 
+  // ================= SIGN OUT =================
   const handleSignOut = async () => {
-    Alert.alert(
-      "Đăng xuất",
-      "Bạn có chắc chắn muốn đăng xuất?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Đăng xuất",
-          style: "destructive",
-          onPress: async () => {
-            await signOut();
-            router.replace("/(auth)/welcome");
-          },
+    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Đăng xuất",
+        style: "destructive",
+        onPress: async () => {
+          await signOut();
+          router.replace("/(auth)/welcome");
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  // --- RENDER MÀN HÌNH CHÍNH ---
+  // ================= RENDER =================
   return (
     <View style={styles.container}>
-      {/* Header với Gradient */}
+      {/* HEADER */}
       <LinearGradient
         colors={[AppTheme.colors.primary, AppTheme.colors.primaryLight]}
         style={styles.header}
       >
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <Ionicons name="arrow-back" size={24} color="#FFF" />
           </TouchableOpacity>
+
           <Text style={styles.headerTitle}>Quản lý Vendor</Text>
-          <TouchableOpacity onPress={handleSignOut} style={styles.logoutBtn}>
+
+          <TouchableOpacity onPress={handleSignOut} style={styles.iconBtn}>
             <Ionicons name="log-out-outline" size={24} color="#FFF" />
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
+      {/* CONTENT */}
       {loading ? (
         <View style={styles.centerLoading}>
           <ActivityIndicator size="large" color="#007bff" />
-          <Text style={{ marginTop: 10, color: '#666' }}>Đang tải dữ liệu...</Text>
+          <Text style={{ marginTop: 10, color: "#666" }}>
+            Đang tải dữ liệu...
+          </Text>
         </View>
       ) : (
         <FlatList
@@ -169,7 +189,9 @@ const fetchVendors = async () => {
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>Không tìm thấy vendor nào.</Text>
+            <Text style={styles.emptyText}>
+              Không tìm thấy vendor nào
+            </Text>
           }
         />
       )}
@@ -177,11 +199,11 @@ const fetchVendors = async () => {
   );
 }
 
-// --- STYLES ---
+// ================= STYLES =================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F6FA',
+    backgroundColor: "#F5F6FA",
   },
   header: {
     paddingTop: 60,
@@ -191,62 +213,47 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 24,
   },
   headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  backBtn: {
+  iconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoutBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#FFF',
+    fontWeight: "800",
+    color: "#FFF",
   },
   centerLoading: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   listContent: {
     padding: 12,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    // Shadow cho iOS
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    // Shadow cho Android
     elevation: 3,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
   },
   vendorName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
+    fontWeight: "bold",
     flex: 1,
     marginRight: 8,
   },
@@ -258,36 +265,36 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   infoContainer: {
     marginBottom: 12,
   },
   infoText: {
     fontSize: 14,
-    color: '#555',
+    color: "#555",
     marginBottom: 4,
   },
   footerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: "#f0f0f0",
     paddingTop: 10,
   },
   planCountText: {
     fontSize: 14,
-    color: '#007bff',
+    color: "#007bff",
   },
   dateText: {
     fontSize: 12,
-    color: '#999',
+    color: "#999",
   },
   emptyText: {
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 20,
-    color: '#888',
+    color: "#888",
     fontSize: 16,
   },
 });
