@@ -3,12 +3,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 export default function AdminScreen() {
@@ -35,12 +35,13 @@ export default function AdminScreen() {
 
   const adminMenuItems = [
     {
-      title: "Quản lý người dùng",
+      title: "Quản lý vendor",
       icon: "people-outline",
-      description: "Xem và quản lý tất cả người dùng",
+      description: "Xem và quản lý tất cả Cửa hàng",
       onPress: () => {
         // TODO: Navigate to user management
-        Alert.alert("Thông báo", "Tính năng đang phát triển");
+        // Alert.alert("Thông báo", "Tính năng đang phát triển");
+        router.push("/vendors");
       },
     },
     {
@@ -49,7 +50,9 @@ export default function AdminScreen() {
       description: "Thêm, sửa, xóa gói dịch vụ",
       onPress: () => {
         // TODO: Navigate to package management
-        Alert.alert("Thông báo", "Tính năng đang phát triển");
+        // Alert.alert("Thông báo", "Tính năng đang phát triển");
+        router.push("/plans");
+
       },
     },
     {
