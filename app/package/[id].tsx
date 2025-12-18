@@ -1,19 +1,19 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Image,
-  Pressable,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { packageService } from "@/services/package.service";
 import { reviewService } from "@/services/review.service";
 import { Package, Review } from "@/types";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 export default function PackageDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -32,10 +32,12 @@ export default function PackageDetailScreen() {
       // Load package data first
       const pkgData = await packageService.getPackageById(Number(id));
       setPackageData(pkgData);
-      
+
       // Try to load reviews, but don't fail if it errors
       try {
-        const reviewsData = await reviewService.getPlanReviews(Number(id), { limit: 5 });
+        const reviewsData = await reviewService.getPlanReviews(Number(id), {
+          limit: 5,
+        });
         setReviews(reviewsData?.reviews || []);
       } catch (reviewError) {
         console.error("Error loading reviews (non-critical):", reviewError);
@@ -61,7 +63,7 @@ export default function PackageDetailScreen() {
     const now = new Date();
     const diffTime = Math.abs(now.getTime() - date.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return "Hôm nay";
     if (diffDays === 1) return "Hôm qua";
     if (diffDays < 7) return `${diffDays} ngày trước`;
@@ -71,12 +73,17 @@ export default function PackageDetailScreen() {
 
   const getFeatures = (featuresString?: string) => {
     if (!featuresString) return [];
-    return featuresString.split(",").map(f => f.trim());
+    return featuresString.split(",").map((f) => f.trim());
   };
 
   if (loading || !packageData) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+      <View
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
         <ActivityIndicator size="large" color="#667eea" />
         <Text style={{ marginTop: 16, color: "#666" }}>Đang tải...</Text>
       </View>
@@ -87,14 +94,23 @@ export default function PackageDetailScreen() {
     <View style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Header Image */}
-        {(packageData.imageUrl || packageData.image) ? (
+        {packageData.imageUrl || packageData.image ? (
           <Image
             source={{ uri: packageData.imageUrl || packageData.image }}
             style={styles.headerImage}
             defaultSource={require("@/assets/images/partial-react-logo.png")}
           />
         ) : (
-          <View style={[styles.headerImage, { backgroundColor: '#f0f0f0', justifyContent: 'center', alignItems: 'center' }]}>
+          <View
+            style={[
+              styles.headerImage,
+              {
+                backgroundColor: "#f0f0f0",
+                justifyContent: "center",
+                alignItems: "center",
+              },
+            ]}
+          >
             <Ionicons name="image-outline" size={64} color="#ccc" />
           </View>
         )}
@@ -107,7 +123,9 @@ export default function PackageDetailScreen() {
             <View style={styles.ratingRow}>
               <View style={styles.ratingContainer}>
                 <Ionicons name="star" size={18} color="#FFC107" />
-                <Text style={styles.ratingText}>{Number(packageData.average_rating || 0).toFixed(1)}</Text>
+                <Text style={styles.ratingText}>
+                  {Number(packageData.average_rating || 0).toFixed(1)}
+                </Text>
               </View>
               <Text style={styles.subscriberText}>
                 {packageData.subscriber_count}+ người đăng ký
@@ -162,13 +180,17 @@ export default function PackageDetailScreen() {
               )}
             </View>
             {reviews.length === 0 ? (
-              <Text >Chưa có đánh giá nào</Text>
+              <Text>Chưa có đánh giá nào</Text>
             ) : (
               reviews.map((review) => (
                 <View key={review.id} style={styles.reviewCard}>
                   <View style={styles.reviewHeader}>
-                    <Text style={styles.reviewUserName}>{review.user.name}</Text>
-                    <Text style={styles.reviewDate}>{formatDate(review.createdAt)}</Text>
+                    <Text style={styles.reviewUserName}>
+                      {review.user.name}
+                    </Text>
+                    <Text style={styles.reviewDate}>
+                      {formatDate(review.createdAt)}
+                    </Text>
                   </View>
                   <View style={styles.reviewRating}>
                     {[...Array(5)].map((_, i) => (
@@ -193,12 +215,15 @@ export default function PackageDetailScreen() {
         <View style={styles.priceSection}>
           <Text style={styles.priceLabel}>Giá gói</Text>
           <Text style={styles.price}>
-            {formatPrice(packageData.price)}/{packageData.duration_value} {packageData.duration_unit}
+            {formatPrice(packageData.price)}/{packageData.duration_value}{" "}
+            {packageData.duration_unit}
           </Text>
         </View>
         <Pressable
           style={styles.subscribeButton}
-          onPress={() => router.push(`/checkout?packageId=${packageData.id}` as any)}
+          onPress={() =>
+            router.push(`/checkout?packageId=${packageData.id}` as any)
+          }
         >
           <Text style={styles.subscribeButtonText}>Đăng ký ngay</Text>
         </Pressable>
