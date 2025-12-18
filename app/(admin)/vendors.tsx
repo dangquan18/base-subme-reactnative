@@ -26,7 +26,7 @@ const fetchVendors = async () => {
     console.log('Bắt đầu gọi API...');
 
     // 1. Lấy token từ AsyncStorage
-    const token = await AsyncStorage.getItem('authToken');
+    const token = await AsyncStorage.getItem('auth_token');
 
     if (!token) {
       Alert.alert('Lỗi', 'Không tìm thấy token, vui lòng đăng nhập lại');

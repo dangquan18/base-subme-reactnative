@@ -152,6 +152,7 @@ export default function PackageDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Chi tiết gói dịch vụ', headerBackTitle: 'Back' }} />
+      
       <View style={styles.container}>
         <StatusBar barStyle="dark-content" />
         
